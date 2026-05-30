@@ -1,0 +1,27 @@
+{
+  "CAM 1.mp4": {
+    "camera_id": "CAM_ENTRY_01",
+    "store_id": "STORE_ST1008",
+    "fps": 29.97
+  },
+  "CAM 2.mp4": {
+    "camera_id": "CAM_FLOOR_01",
+    "store_id": "STORE_ST1008",
+    "fps": 29.97
+  },
+  "CAM 3.mp4": {
+    "camera_id": "CAM_FLOOR_02",
+    "store_id": "STORE_ST1008",
+    "fps": 29.97
+  },
+  "CAM 4.mp4": {
+    "camera_id": "CAM_FLOOR_03",
+    "store_id": "STORE_ST1008",
+    "fps": 24.98
+  },
+  "CAM 5.mp4": {
+    "camera_id": "CAM_BILLING_01",
+    "store_id": "STORE_ST1008",
+    "fps": 24.98
+  }
+}
