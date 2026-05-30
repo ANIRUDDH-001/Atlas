@@ -37,8 +37,11 @@ async def get_metrics(
     try:
         cached = await cache.get(cache_key)
         if cached:
-            logger.info("metrics_cache_hit", store_id=store_id, trace_id=trace_id)
             data = json.loads(cached)
+            logger.info("metrics_computed", store_id=store_id, trace_id=trace_id,
+                        visitors=data.get("unique_visitors"),
+                        conversion=data.get("conversion_rate"),
+                        cache_hit=True)
             return MetricsResponse(**data)
     except Exception as exc:
         logger.warning("metrics_cache_read_failed", store_id=store_id, error=type(exc).__name__)
@@ -56,7 +59,8 @@ async def get_metrics(
         logger.warning("metrics_cache_write_failed", store_id=store_id, error=type(exc).__name__)
     logger.info("metrics_computed", store_id=store_id, trace_id=trace_id,
                 visitors=result.unique_visitors,
-                conversion=result.conversion_rate)
+                conversion=result.conversion_rate,
+                cache_hit=False)
     return result
 
 
@@ -89,7 +93,7 @@ async def compute_metrics(
             WHERE e.store_id = :store_id
               AND e.zone_id IN ('BILLING', 'CHECKOUT', 'CASH_COUNTER')
               AND e.is_staff = FALSE
-              AND e.timestamp::date = CURRENT_DATE
+              AND DATE(e.timestamp) = CURRENT_DATE
         """), {"store_id": store_id,
                "window": POS_CORRELATION_WINDOW_SECONDS})
         converted = conversions_row.scalar() or 0
@@ -105,7 +109,7 @@ async def compute_metrics(
             WHERE store_id = :store_id
               AND event_type = 'ZONE_DWELL'
               AND is_staff = FALSE
-              AND timestamp::date = CURRENT_DATE
+              AND DATE(timestamp) = CURRENT_DATE
             GROUP BY zone_id
             ORDER BY avg_dwell_sec DESC
         """), {"store_id": store_id})
@@ -133,7 +137,7 @@ async def compute_metrics(
             WHERE store_id = :store_id
               AND event_type = 'BILLING_QUEUE_ABANDON'
               AND is_staff = FALSE
-              AND timestamp::date = CURRENT_DATE
+              AND DATE(timestamp) = CURRENT_DATE
         """), {"store_id": store_id})
         abandon_count = abandon_row.scalar() or 0
         abandonment_rate = (

@@ -78,12 +78,33 @@ async def ingest_events(
     rejected: list[IngestError] = []
     affected_stores: set[str] = set()
 
-    for event in payload.events:
-        validate_store_id(event.store_id)
+    for item in payload.events:
+        if isinstance(item, dict):
+            try:
+                event = StoreEvent.model_validate(item)
+            except ValidationError as exc:
+                rejected.append(IngestError(
+                    event_id=item.get("event_id", "unknown"),
+                    reason="malformed_event",
+                ))
+                continue
+        else:
+            event = item
+
         try:
-            await _insert_event(db, event)
-            accepted_ids.append(event.event_id)
-            affected_stores.add(event.store_id)
+            validate_store_id(event.store_id)
+        except Exception:
+            rejected.append(IngestError(
+                event_id=event.event_id,
+                reason="invalid_store",
+            ))
+            continue
+
+        try:
+            result = await _insert_event(db, event)
+            if result.rowcount != 0:
+                accepted_ids.append(event.event_id)
+                affected_stores.add(event.store_id)
         except Exception as exc:
             logger.warning(
                 "event_insert_failed",
@@ -111,7 +132,7 @@ async def ingest_events(
     logger.info(
         "ingest_complete",
         trace_id=trace_id,
-        total=len(payload.events),
+        event_count=len(payload.events),
         accepted=len(accepted_ids),
         rejected=len(rejected),
         stores=list(affected_stores),
@@ -129,7 +150,7 @@ async def _insert_event(db: AsyncSession, event: StoreEvent) -> None:
     Insert a single event idempotently.
     ON CONFLICT (event_id) DO NOTHING ensures safe replay.
     """
-    await db.execute(
+    return await db.execute(
         text("""
             INSERT INTO events (
                 event_id, store_id, camera_id, visitor_id,

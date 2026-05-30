@@ -72,7 +72,7 @@ class StoreEvent(BaseModel):
         json_encoders = {datetime: lambda v: v.isoformat()}
 
 class EventBatch(BaseModel):
-    events: list[StoreEvent] = Field(..., min_length=1, max_length=500)
+    events: list[StoreEvent | dict] = Field(..., min_length=1, max_length=500)
 
 # ── Ingest Response ─────────────────────────────────────────────────────────
 class IngestError(BaseModel):

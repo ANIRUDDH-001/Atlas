@@ -2,7 +2,7 @@ import asyncio
 import structlog
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from sqlalchemy import text
 
 from app.db import AsyncSessionLocal
@@ -20,7 +20,8 @@ settings = get_settings()
     response_model=HealthResponse,
     summary="Service health: database, cache, and per-store feed status",
 )
-async def health_check() -> HealthResponse:
+async def health_check(request: Request) -> HealthResponse:
+    trace_id = getattr(request.state, "trace_id", "unknown")
     now = datetime.now(timezone.utc)
 
     # ── Check database ────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ async def health_check() -> HealthResponse:
                         MAX(timestamp)  AS last_event,
                         COUNT(*)        AS event_count_today
                     FROM events
-                    WHERE timestamp::date = CURRENT_DATE
+                    WHERE DATE(timestamp) = CURRENT_DATE
                     GROUP BY store_id
                     ORDER BY store_id
                 """))
@@ -88,7 +89,7 @@ async def health_check() -> HealthResponse:
     else:
         overall = "OK"
 
-    logger.info("health_check", status=overall,
+    logger.info("health_check", trace_id=trace_id, status=overall,
                 db=db_status, cache=cache_status,
                 store_count=len(store_healths))
 

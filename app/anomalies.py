@@ -140,11 +140,11 @@ async def get_anomalies(
         # No events ever — treat as stale
         stale = True
     else:
+        if isinstance(last_event_ts, str):
+            last_event_ts = datetime.fromisoformat(last_event_ts.replace('Z', '+00:00'))
         if last_event_ts.tzinfo is None:
             last_event_ts = last_event_ts.replace(tzinfo=timezone.utc)
-        stale = (now - last_event_ts) > timedelta(
-            minutes=settings.stale_feed_minutes
-        )
+        stale = (now - last_event_ts).total_seconds() > settings.stale_feed_minutes * 60
 
     if stale:
         anomalies.append(AnomalyRecord(
@@ -174,7 +174,7 @@ async def _compute_daily_conversion(
         SELECT COUNT(DISTINCT visitor_id) AS cnt
         FROM events
         WHERE store_id = :store_id AND is_staff = FALSE
-          AND event_type = 'ENTRY' AND timestamp::date = :target_date
+          AND event_type = 'ENTRY' AND DATE(timestamp) = :target_date
     """), {"store_id": store_id, "target_date": target_date})
     visitors = visitors_row.scalar() or 0
     if visitors == 0:
@@ -191,7 +191,7 @@ async def _compute_daily_conversion(
         WHERE e.store_id = :store_id
           AND e.zone_id IN ('BILLING','CHECKOUT','CASH_COUNTER')
           AND e.is_staff = FALSE
-          AND e.timestamp::date = :target_date
+          AND DATE(e.timestamp) = :target_date
     """), {"store_id": store_id,
            "target_date": target_date,
            "window": POS_CORRELATION_WINDOW_SECONDS})

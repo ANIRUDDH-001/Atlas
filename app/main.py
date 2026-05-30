@@ -117,9 +117,9 @@ async def log_requests(request: Request, call_next):
 
 # ── Global exception handlers ──────────────────────────────────────────────────
 @app.exception_handler(OperationalError)
-async def db_operational_error(request: Request, exc: OperationalError):
-    logger.error("db_unavailable", path=request.url.path,
-                 error=type(exc).__name__)
+async def db_op_error_handler(request: Request, exc: OperationalError):
+    import traceback
+    logger.error("db_unavailable", path=request.url.path, error=type(exc).__name__, trace_id=getattr(request.state, "trace_id", None))
     return JSONResponse(
         status_code=503,
         content={
@@ -145,7 +145,8 @@ async def db_custom_error(request: Request, exc: DatabaseUnavailableError):
 @app.exception_handler(Exception)
 async def generic_error(request: Request, exc: Exception):
     logger.error("unhandled_exception", path=request.url.path,
-                 error=type(exc).__name__, detail=str(exc))
+                 error=type(exc).__name__, detail=str(exc),
+                 trace_id=getattr(request.state, "trace_id", None))
     return JSONResponse(
         status_code=500,
         content={

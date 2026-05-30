@@ -41,7 +41,7 @@ async def get_funnel(
             FROM events
             WHERE store_id = :store_id
               AND is_staff = FALSE
-              AND timestamp::date = CURRENT_DATE
+              AND DATE(timestamp) = CURRENT_DATE
             GROUP BY visitor_id
         ),
         purchasers AS (
@@ -56,7 +56,7 @@ async def get_funnel(
             WHERE e.store_id = :store_id
               AND e.zone_id IN ('BILLING', 'CHECKOUT', 'CASH_COUNTER')
               AND e.is_staff = FALSE
-              AND e.timestamp::date = CURRENT_DATE
+              AND DATE(e.timestamp) = CURRENT_DATE
         )
         SELECT
             COUNT(*) FILTER (WHERE s.entered)            AS entry_count,

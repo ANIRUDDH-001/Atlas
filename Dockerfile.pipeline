@@ -1,0 +1,31 @@
+FROM python:3.11-slim
+
+WORKDIR /pipeline
+
+# System dependencies for OpenCV and torch
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1 \
+    ffmpeg libgl1-mesa-glx && \
+    rm -rf /var/lib/apt/lists/*
+
+# Python ML dependencies
+RUN pip install --no-cache-dir \
+    ultralytics \
+    torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+    torchreid \
+    opencv-python-headless \
+    numpy shapely structlog python-dotenv
+
+# Copy pipeline code
+COPY pipeline/ ./pipeline/
+COPY app/constants.py ./app/constants.py
+COPY app/config.py    ./app/config.py
+COPY app/models.py    ./app/models.py
+COPY app/__init__.py  ./app/__init__.py
+
+# Pre-download YOLO11n weights at build time
+RUN python3 -c "from ultralytics import YOLO; YOLO('yolo11n.pt')" || true
+
+VOLUME ["/pipeline/data"]
+
+CMD ["bash", "pipeline/run.sh"]

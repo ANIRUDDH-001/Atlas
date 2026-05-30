@@ -1,0 +1,81 @@
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-apex}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apex}
+      POSTGRES_DB:       ${POSTGRES_DB:-store_intel}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-apex} -d ${POSTGRES_DB:-store_intel}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # ── API ──────────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-apex}:${POSTGRES_PASSWORD:-apex}@db:5432/${POSTGRES_DB:-store_intel}
+      REDIS_URL:    redis://redis:6379
+      LOG_LEVEL:    ${LOG_LEVEL:-INFO}
+      STORE_LAYOUT_PATH:       /app/data/store_layout.json
+      POS_CSV_PATH:            /app/data/pos_transactions.csv
+      PIPELINE_OUTPUT_PATH:    /app/data/events.jsonl
+      QUEUE_WARN_THRESHOLD:    ${QUEUE_WARN_THRESHOLD:-5}
+      QUEUE_CRITICAL_THRESHOLD: ${QUEUE_CRITICAL_THRESHOLD:-8}
+      REENTRY_SIMILARITY_THRESHOLD: ${REENTRY_SIMILARITY_THRESHOLD:-0.72}
+      REENTRY_WINDOW_SECONDS:  ${REENTRY_WINDOW_SECONDS:-1800}
+      CONVERSION_DROP_THRESHOLD: ${CONVERSION_DROP_THRESHOLD:-0.70}
+      DEAD_ZONE_MINUTES:       ${DEAD_ZONE_MINUTES:-30}
+      STALE_FEED_MINUTES:      ${STALE_FEED_MINUTES:-10}
+      METRICS_CACHE_TTL_SECONDS: ${METRICS_CACHE_TTL_SECONDS:-30}
+    volumes:
+      - ./data:/app/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: on-failure
+
+  # ── Dashboard ────────────────────────────────────────────────────────────────
+  dashboard:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./dashboard:/usr/share/nginx/html:ro
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  redisdata:

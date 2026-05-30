@@ -144,6 +144,8 @@ class Detector:
         finally:
             cap.release()
             logger.info("clip_complete", video=str(video_path),
+                        store_id=store_id,
+                        camera_id=camera_id,
                         frames_processed=frame_idx,
                         detections_yielded=processed)
 
