@@ -66,15 +66,8 @@ async def compute_metrics(
         now = datetime.now(timezone.utc)
 
         # 1. Unique customer visitors today (ENTRY events, not staff)
-        visitors_row = await session.execute(text("""
-            SELECT COUNT(DISTINCT visitor_id) AS cnt
-            FROM events
-            WHERE store_id = :store_id
-              AND is_staff = FALSE
-              AND event_type = 'ENTRY'
-              AND timestamp::date = CURRENT_DATE
-        """), {"store_id": store_id})
-        unique_visitors = visitors_row.scalar() or 0
+        from app.session import count_unique_sessions
+        unique_visitors = await count_unique_sessions(session, store_id)
 
         # 2. Conversion rate via 5-minute POS window join
         conversions_row = await session.execute(text("""
