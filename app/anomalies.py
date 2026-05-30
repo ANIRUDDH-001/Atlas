@@ -60,6 +60,7 @@ async def get_anomalies(
         SELECT queue_depth FROM events
         WHERE store_id = :store_id
           AND event_type = 'BILLING_QUEUE_JOIN'
+          AND is_staff = FALSE
           AND queue_depth IS NOT NULL
           AND timestamp >= NOW() - INTERVAL '5 minutes'
         ORDER BY timestamp DESC

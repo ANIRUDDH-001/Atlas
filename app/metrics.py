@@ -112,6 +112,7 @@ async def compute_metrics(
             SELECT queue_depth FROM events
             WHERE store_id = :store_id
               AND event_type = 'BILLING_QUEUE_JOIN'
+              AND is_staff = FALSE
               AND queue_depth IS NOT NULL
             ORDER BY timestamp DESC
             LIMIT 1
