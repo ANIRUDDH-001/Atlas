@@ -70,19 +70,141 @@
     window.API_BASE = "http://localhost:8000";
     window.STORE_ID = "STORE_BLR_002";
 
-    // Stub Components
-    const MetricsPanel = ({ metrics }) => (
-      <div className="card">
-        <h3>Metrics Panel</h3>
-        <div>{metrics ? "Metrics Loaded" : "Waiting for data..."}</div>
-      </div>
-    );
-    
-    const VisitorTrendChart = () => (
-      <div className="card" style={{ gridColumn: "span 2" }}>
-        <h3>Visitor Trend</h3>
-      </div>
-    );
+    const fmt = {
+      num: (n) => (n == null ? "—" : n.toLocaleString()),
+      pct: (p) => (p == null ? "—" : (p * 100).toFixed(1) + "%"),
+      sec: (s) => (s == null ? "—" : Math.round(s) + "s"),
+      time: (t) => {
+        if (!t) return "—";
+        const d = new Date(t);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+    };
+
+    function MetricsPanel({ metrics }) {
+      if (!metrics) return <div className="loading">Awaiting live feed…</div>;
+
+      const queueClass =
+        metrics.current_queue_depth > 8 ? "severity-critical" :
+        metrics.current_queue_depth > 5 ? "severity-warn" : "";
+
+      return (
+        <div className="dashboard-grid">
+
+          {/* Unique Visitors */}
+          <div className="card">
+            <div className="card-title">Visitors Today</div>
+            <div className="card-value">{fmt.num(metrics.unique_visitors)}</div>
+            <div className="card-sub">
+              <span className={`badge badge-${metrics.data_confidence.toLowerCase()}`}>
+                {metrics.data_confidence}
+              </span>
+            </div>
+          </div>
+
+          {/* Conversion Rate */}
+          <div className="card">
+            <div className="card-title">Conversion Rate</div>
+            <div className="card-value">{fmt.pct(metrics.conversion_rate)}</div>
+            <div className="card-sub">
+              {metrics.conversion_rate == null ? "No purchases yet" : "visitors → purchase"}
+            </div>
+          </div>
+
+          {/* Queue Depth */}
+          <div className={`card ${queueClass}`}>
+            <div className="card-title">Billing Queue</div>
+            <div className="card-value"
+                 style={{ color: queueClass === "severity-critical" ?
+                          "var(--critical)" : "var(--accent)" }}>
+              {metrics.current_queue_depth}
+            </div>
+            <div className="card-sub">
+              {metrics.current_queue_depth > 8 ? "⚠ Critical — add staff" :
+               metrics.current_queue_depth > 5 ? "⚠ Queue building" :
+               "Normal"}
+            </div>
+          </div>
+
+          {/* Abandonment Rate */}
+          <div className="card">
+            <div className="card-title">Abandonment Rate</div>
+            <div className="card-value">{fmt.pct(metrics.abandonment_rate)}</div>
+            <div className="card-sub">billing queue exits</div>
+          </div>
+
+          {/* Top Dwell Zone */}
+          <div className="card">
+            <div className="card-title">Top Dwell Zone</div>
+            <div className="card-value" style={{ fontSize: "1.2rem" }}>
+              {metrics.avg_dwell_by_zone.length > 0
+                ? metrics.avg_dwell_by_zone[0].zone_id
+                : "—"}
+            </div>
+            <div className="card-sub">
+              {metrics.avg_dwell_by_zone.length > 0
+                ? `${fmt.sec(metrics.avg_dwell_by_zone[0].avg_dwell_sec)} avg`
+                : "No dwell data"}
+            </div>
+          </div>
+
+          {/* Last Updated */}
+          <div className="card">
+            <div className="card-title">Last Updated</div>
+            <div className="card-value" style={{ fontSize: "1rem" }}>
+              {fmt.time(metrics.as_of)}
+            </div>
+            <div className="card-sub">live via SSE</div>
+          </div>
+
+        </div>
+      );
+    }
+
+    function VisitorTrendChart({ history }) {
+      const { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } = Recharts;
+
+      return (
+        <div className="dashboard-full card" style={{ height: 180 }}>
+          <div className="card-title">Visitor Count — Live Trend (last 30 updates)</div>
+          {history.length === 0
+            ? <div className="loading">Collecting data…</div>
+            : (
+              <ResponsiveContainer width="100%" height={140}>
+                <LineChart data={history}>
+                  <XAxis
+                    dataKey="t"
+                    tick={{ fill: "var(--text-dim)", fontSize: 10 }}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    tick={{ fill: "var(--text-dim)", fontSize: 10 }}
+                    allowDecimals={false}
+                    width={32}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="visitors"
+                    stroke="var(--accent)"
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )
+          }
+        </div>
+      );
+    }
     
     const FunnelPanel = () => (
       <div className="card">
@@ -114,12 +236,21 @@
       const [sseStatus, setSseStatus] = React.useState("CONNECTING");
       const [metrics, setMetrics] = React.useState(null);
       const [anomalies, setAnomalies] = React.useState([]);
+      const [history, setHistory] = React.useState([]);
 
       // SSE Connection
       React.useEffect(() => {
         const es = new EventSource(`${window.API_BASE}/stores/${window.STORE_ID}/metrics/stream`);
         es.onopen    = () => setSseStatus("LIVE");
-        es.onmessage = (e) => { const d = JSON.parse(e.data); setMetrics(d); };
+        es.onmessage = (e) => { 
+          const d = JSON.parse(e.data); 
+          setMetrics(d);
+          setHistory(prev => {
+            const t = new Date(d.as_of || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const next = [...prev, { t, visitors: d.unique_visitors }];
+            return next.length > 30 ? next.slice(next.length - 30) : next;
+          });
+        };
         es.onerror   = () => setSseStatus("DISCONNECTED");
         return () => es.close();
       }, []);
@@ -146,7 +277,7 @@
           
           <div className="dashboard-grid">
             <MetricsPanel metrics={metrics} />
-            <VisitorTrendChart />
+            <VisitorTrendChart history={history} />
             <FunnelPanel />
             <HeatmapPanel />
             <AnomalyPanel anomalies={anomalies} />
