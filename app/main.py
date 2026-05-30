@@ -33,6 +33,18 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     logger.info("startup", service="store-intelligence-api",
                 database=settings.database_url.split("@")[-1])
+
+    # Load POS transactions on startup
+    from app.pos_loader import load_pos_transactions
+    from app.db import AsyncSessionLocal
+    async with AsyncSessionLocal() as session:
+        try:
+            count = await load_pos_transactions(session)
+            logger.info("pos_transactions_loaded", count=count)
+        except Exception as exc:
+            # POS load failure is non-fatal — metrics will show null conversion
+            logger.error("pos_load_failed", error=str(exc))
+
     yield
     await close_cache()
     logger.info("shutdown", service="store-intelligence-api")
