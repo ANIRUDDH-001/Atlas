@@ -1,119 +1,202 @@
-# Store Intelligence — AI-Powered Retail Analytics
+# Store Intelligence System
+## Purplle Tech Challenge 2026 — Round 2
 
-Purplle Tech Challenge 2026 submission. AI-powered in-store customer
-behaviour analytics using computer vision, real-time event processing,
-and a live dashboard.
+AI-powered retail analytics from raw CCTV footage. Processes video clips through
+a computer vision pipeline to produce real-time store metrics, conversion funnels,
+zone heatmaps, and operational anomaly detection.
 
-## Quick Start
+---
 
-```bash
-git clone <repo>
-cd store-intelligence
-docker compose up -d --build
-```
-
-Wait ~30 seconds for services to start, then verify:
+## Quick Start (5 Commands)
 
 ```bash
-curl http://localhost:8000/health
+# 1. Clone and enter
+git clone <your-repo-url> store-intelligence && cd store-intelligence
+
+# 2. Prepare data directory structure
+mkdir -p data/videos/STORE_ST1008
+
+# 3. Copy your dataset files into place
+#    - Place CAM 1.mp4 through CAM 5.mp4 into data/videos/STORE_ST1008/
+#    - Place Brigade_Bangalore_10_April_26.csv into data/
+#    - Place store_layout.json into data/  (generated — see below)
+
+# 4. Preprocess the POS data and generate store_layout.json
+python3 scripts/setup_data.py
+
+# 5. Start all services
+docker compose up --build
 ```
+
+The system is ready when `http://localhost:8000/health` returns `{"status":"OK"}`.
+
+---
 
 ## Accessing the System
 
-| Service         | URL                          |
-|-----------------|------------------------------|
-| API (FastAPI)   | http://localhost:8000        |
-| API Docs        | http://localhost:8000/docs   |
-| Dashboard (live)| http://localhost:3000        |
-| PostgreSQL      | localhost:5432               |
-| Redis           | localhost:6379               |
+| Service | URL | Description |
+|---|---|---|
+| **Live Dashboard** | http://localhost:3000 | Real-time store metrics |
+| **API Docs** | http://localhost:8000/docs | Swagger UI for all endpoints |
+| **Health Check** | http://localhost:8000/health | Service status |
+| **Metrics** | http://localhost:8000/stores/STORE_ST1008/metrics | Live store analytics |
+| **Funnel** | http://localhost:8000/stores/STORE_ST1008/funnel | Conversion funnel |
+| **Anomalies** | http://localhost:8000/stores/STORE_ST1008/anomalies | Active alerts |
 
-## Architecture
+---
 
-```
-┌─────────────┐    ┌─────────────┐    ┌──────────────┐    ┌────────────┐
-│  Video Feed │───▶│  Pipeline   │───▶│  FastAPI API  │───▶│ Dashboard  │
-│  (clips)    │    │  (YOLO+ReID)│    │  (asyncpg)   │    │ (nginx)    │
-└─────────────┘    └─────────────┘    └──────┬───────┘    └────────────┘
-                                             │
-                                     ┌───────┴───────┐
-                                     │  PostgreSQL   │
-                                     │  + Redis      │
-                                     └───────────────┘
-```
+## Running the Detection Pipeline
 
-### Services (Docker Compose)
-
-- **db** — PostgreSQL 16 Alpine, schema auto-created via `migrations/init.sql`
-- **redis** — Redis 7 Alpine, used for metrics caching (30s TTL)
-- **api** — FastAPI application (multi-stage build, non-root user)
-- **dashboard** — nginx Alpine serving the live analytics dashboard
-
-## Running the Pipeline
-
-The CV pipeline processes video clips and emits structured events:
+The pipeline processes all 5 CCTV clips and outputs `data/events.jsonl`.
 
 ```bash
+# Run pipeline (processes all cameras for STORE_ST1008)
 bash pipeline/run.sh
+
+# Expected output: events.jsonl with structured events
+# Ingest output into the running API
+python3 scripts/ingest_events.py
 ```
 
-This runs YOLO11n detection → BoT-SORT tracking → OSNet Re-ID →
-zone mapping → event emission. Output is written to `data/events.jsonl`.
+Pipeline progress is logged to stdout. Expected runtime: ~5–10 minutes on CPU.
 
-To ingest the pipeline output into the API:
+### Camera Mapping
+The 5 provided cameras are mapped to logical roles:
+
+| File | Logical Camera ID | Role |
+|---|---|---|
+| CAM 1.mp4 | CAM_ENTRY_01 | Entry/Exit threshold |
+| CAM 2.mp4 | CAM_FLOOR_01 | Skincare zone |
+| CAM 3.mp4 | CAM_FLOOR_02 | Makeup + Fragrance zone |
+| CAM 4.mp4 | CAM_FLOOR_03 | Haircare + Wellness zone |
+| CAM 5.mp4 | CAM_BILLING_01 | Cash counter / Billing |
+
+---
+
+## Data Setup Details
+
+### POS Data Preprocessing
+The raw POS CSV (39 columns, 101 line items) is preprocessed to the 4-column
+format required by the API. The script `scripts/setup_data.py` handles this:
 
 ```bash
-curl -X POST http://localhost:8000/events/ingest \
-  -H "Content-Type: application/json" \
-  -d @data/events.jsonl
+python3 scripts/setup_data.py
+# Creates: data/pos_transactions.csv (4-column, 24 invoice rows)
+# Creates: data/store_layout.json    (STORE_ST1008 zone definitions)
 ```
 
-## API Endpoints
+### Data Directory Structure
+```
+data/
+├── videos/
+│   └── STORE_ST1008/
+│       ├── CAM 1.mp4    → CAM_ENTRY_01
+│       ├── CAM 2.mp4    → CAM_FLOOR_01
+│       ├── CAM 3.mp4    → CAM_FLOOR_02
+│       ├── CAM 4.mp4    → CAM_FLOOR_03
+│       └── CAM 5.mp4    → CAM_BILLING_01
+├── pos_transactions_raw.csv    (original 39-column CSV)
+├── pos_transactions.csv        (generated 4-column format)
+├── store_layout.json           (generated from blueprint)
+└── events.jsonl                (generated by pipeline)
+```
 
-| Method | Endpoint                              | Description                    |
-|--------|---------------------------------------|--------------------------------|
-| GET    | `/health`                             | Service health check           |
-| POST   | `/events/ingest`                      | Ingest event batch             |
-| GET    | `/stores/{store_id}/metrics`          | Store KPIs                     |
-| GET    | `/stores/{store_id}/funnel`           | Conversion funnel              |
-| GET    | `/stores/{store_id}/heatmap`          | Zone heatmap                   |
-| GET    | `/stores/{store_id}/anomalies`        | Real-time anomalies            |
-| GET    | `/stores/{store_id}/metrics/stream`   | SSE live metrics stream        |
+---
 
-## Testing
+## Architecture Overview
+
+```
+[CCTV Clips] → [YOLO11n + BoT-SORT + OSNet] → [events.jsonl]
+                                                      ↓
+                                          [POST /events/ingest]
+                                                      ↓
+                                        [PostgreSQL + Redis Cache]
+                                                      ↓
+                          [/metrics] [/funnel] [/heatmap] [/anomalies]
+                                                      ↓
+                                    [SSE Stream → React Dashboard]
+```
+
+See `docs/DESIGN.md` for complete architecture documentation.
+
+---
+
+## Running Tests
 
 ```bash
-# Run full test suite with coverage
-python -m pytest tests/ --cov=app --cov-report=term-missing --cov-fail-under=70
-
-# Current coverage: 73.86% (37 tests passing)
+pip install -e ".[test]"
+pytest tests/ --cov=app --cov-report=term-missing -v
 ```
+
+Coverage target: ≥70% statement coverage.
+
+---
 
 ## Environment Variables
 
-All configuration is via environment variables (no `.env` in Docker image).
-See `.env.example` for defaults. Key variables:
+All configuration via `.env` file (copy from `.env.example`):
 
-| Variable                    | Default   | Description                        |
-|-----------------------------|-----------|------------------------------------|
-| `DATABASE_URL`              | —         | PostgreSQL async connection string |
-| `REDIS_URL`                 | —         | Redis connection string            |
-| `QUEUE_WARN_THRESHOLD`      | 5         | Queue depth warning level          |
-| `QUEUE_CRITICAL_THRESHOLD`  | 8         | Queue depth critical level         |
-| `STALE_FEED_MINUTES`        | 10        | Minutes before feed marked stale   |
-| `METRICS_CACHE_TTL_SECONDS` | 30        | Redis cache TTL for metrics        |
+```bash
+cp .env.example .env
+# Edit .env if needed — defaults work for docker compose
+```
 
-## Documentation
+Key variables:
 
-- [Design Document](docs/DESIGN.md) — architecture, data model, API contracts
-- [AI Decision Log](docs/CHOICES.md) — key technical decisions and rationale
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | postgresql+asyncpg://apex:apex@db/store_intel | PostgreSQL connection |
+| `REDIS_URL` | redis://redis:6379 | Redis connection |
+| `REENTRY_SIMILARITY_THRESHOLD` | 0.72 | Re-ID cosine similarity cutoff |
+| `QUEUE_WARN_THRESHOLD` | 5 | Queue depth WARN trigger |
+| `QUEUE_CRITICAL_THRESHOLD` | 8 | Queue depth CRITICAL trigger |
+
+---
 
 ## Live Dashboard
 
-The dashboard is served at http://localhost:3000 via nginx. It connects to
-the API's SSE endpoint for real-time metric updates and displays:
+The dashboard connects to the API via **Server-Sent Events** and updates
+visitor count in real time as events are ingested.
 
-- Unique visitor count
-- Conversion rate with funnel visualisation
-- Zone heatmap with dwell time analysis
-- Queue depth monitoring with anomaly alerts
+Access at: **http://localhost:3000**
+
+Panels:
+- **Live Metrics** — visitor count, conversion rate, queue depth (SSE live)
+- **Visitor Trend** — real-time line chart (last 30 data points)
+- **Conversion Funnel** — 4-stage drop-off analysis
+- **Zone Heatmap** — colour-coded zone activity grid
+- **Anomaly Alerts** — severity-coded operational alerts
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Detection | YOLO11n (ultralytics) |
+| Tracking | BoT-SORT with ReID enabled |
+| Re-ID | OSNet x0.25 (MSMT17 pretrained) |
+| API | FastAPI 0.111+ + asyncpg |
+| Database | PostgreSQL 16 |
+| Cache | Redis 7 |
+| Dashboard | React 18 + Recharts (CDN, no build step) |
+| Containers | Docker Compose v2 |
+| Logging | structlog (JSON structured) |
+
+---
+
+## Documents
+
+- `docs/DESIGN.md` — System architecture and AI-assisted decisions
+- `docs/CHOICES.md` — Three key engineering decisions with full trade-off reasoning
+
+---
+
+## Notes on the Dataset
+
+The provided dataset differs from the challenge spec in ways handled transparently:
+- **5 cameras, ~2.5 min each** (spec stated 3 cameras × 20 min): same pipeline,
+  shorter clips, all 5 processed
+- **Store ID `ST1008`**: used throughout as `STORE_ST1008` in our system
+- **FPS varies**: 29.97fps (CAM 1–3) and 24.98fps (CAM 4–5) — detected dynamically
+- **POS is 39-column line items**: preprocessed to 4-column invoice aggregates
