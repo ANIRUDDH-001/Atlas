@@ -427,12 +427,136 @@
       );
     }
     
-    const AnomalyPanel = ({ anomalies }) => (
-      <div className="card">
-        <h3>Anomalies</h3>
-        <div>{anomalies.length} detected</div>
-      </div>
-    );
+    function AnomalyPanel({ anomalies }) {
+      const SEVERITY_META = {
+        CRITICAL: { icon: "🚨", cls: "severity-critical", label: "CRITICAL" },
+        WARN:     { icon: "⚠",  cls: "severity-warn",     label: "WARNING"  },
+        INFO:     { icon: "ℹ",  cls: "severity-info",     label: "INFO"     },
+      };
+
+      const criticalCount = anomalies.filter(a => a.severity === "CRITICAL").length;
+      const warnCount     = anomalies.filter(a => a.severity === "WARN").length;
+
+      return (
+        <div className="dashboard-full">
+
+          {/* Panel header */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 8,
+          }}>
+            <span style={{ fontSize: "0.7rem", color: "var(--text-dim)",
+                           textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Active Anomalies
+            </span>
+            {criticalCount > 0 && (
+              <span style={{ background: "var(--critical)", color: "#fff",
+                             fontSize: "0.65rem", fontWeight: "bold",
+                             padding: "2px 8px", borderRadius: 3 }}>
+                {criticalCount} CRITICAL
+              </span>
+            )}
+            {warnCount > 0 && (
+              <span style={{ background: "var(--warn)", color: "#000",
+                             fontSize: "0.65rem", fontWeight: "bold",
+                             padding: "2px 8px", borderRadius: 3 }}>
+                {warnCount} WARN
+              </span>
+            )}
+          </div>
+
+          {/* All clear */}
+          {anomalies.length === 0 && (
+            <div style={{
+              background: "#0a2e0a",
+              border: "1px solid #2e7d32",
+              borderRadius: 6,
+              padding: "12px 16px",
+              color: "var(--accent)",
+              fontSize: "0.85rem",
+            }}>
+              ✓ All clear — no active anomalies
+            </div>
+          )}
+
+          {/* Anomaly cards */}
+          {anomalies.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {anomalies.map((anomaly, i) => {
+                const meta = SEVERITY_META[anomaly.severity] ||
+                             SEVERITY_META["INFO"];
+
+                return (
+                  <div key={`${anomaly.anomaly_id}-${i}`}
+                       className={`card ${meta.cls}`}
+                       style={{ display: "flex", gap: 16, alignItems: "flex-start" }}
+                  >
+                    {/* Icon */}
+                    <div style={{ fontSize: "1.4rem", lineHeight: 1,
+                                  minWidth: 24, paddingTop: 2 }}>
+                      {meta.icon}
+                    </div>
+
+                    {/* Body */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        display: "flex", alignItems: "center",
+                        gap: 8, marginBottom: 4,
+                      }}>
+                        <span style={{ fontWeight: "bold", fontSize: "0.85rem" }}>
+                          {anomaly.anomaly_id}
+                        </span>
+                        <span style={{
+                          fontSize: "0.65rem", fontWeight: "bold",
+                          padding: "1px 6px", borderRadius: 2,
+                          background: meta.cls === "severity-critical" ?
+                            "var(--critical)" :
+                            meta.cls === "severity-warn" ?
+                            "var(--warn)" : "var(--info)",
+                          color: "#000",
+                        }}>
+                          {meta.label}
+                        </span>
+                        {anomaly.zone_id && (
+                          <span style={{ fontSize: "0.7rem",
+                                         color: "var(--text-dim)" }}>
+                            Zone: {anomaly.zone_id}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Value context */}
+                      {anomaly.value != null && (
+                        <div style={{ fontSize: "0.75rem",
+                                      color: "var(--text-dim)", marginBottom: 4 }}>
+                          Current: {anomaly.value}
+                          {anomaly.threshold != null && ` (threshold: ${anomaly.threshold})`}
+                          {anomaly.drop_pct  != null && ` (↓${anomaly.drop_pct}% vs 7-day avg)`}
+                        </div>
+                      )}
+
+                      {/* Suggested action */}
+                      <div style={{ fontSize: "0.8rem", color: "var(--text)",
+                                    lineHeight: 1.5 }}>
+                        {anomaly.suggested_action}
+                      </div>
+                    </div>
+
+                    {/* Timestamp */}
+                    <div style={{ fontSize: "0.65rem", color: "var(--text-dim)",
+                                  whiteSpace: "nowrap", paddingTop: 2 }}>
+                      {fmt.time(anomaly.detected_at)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
 
     const Header = ({ storeId, status }) => (
       <header>
