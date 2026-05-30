@@ -45,7 +45,16 @@ async def lifespan(app: FastAPI):
             logger.info("pos_transactions_loaded", count=count)
         except Exception as exc:
             # POS load failure is non-fatal — metrics will show null conversion
-            logger.error("pos_load_failed", error=str(exc))
+            logger.error("pos_load_failed", error=type(exc).__name__)
+
+    # Cache warm-up
+    from app.cache import get_redis
+    try:
+        redis = await get_redis()
+        await redis.ping()
+        logger.info("redis_warmed_up")
+    except Exception as exc:
+        logger.warning("redis_warm_up_failed", error=type(exc).__name__)
 
     yield
     await close_cache()

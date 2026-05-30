@@ -34,20 +34,26 @@ async def get_metrics(
 
     # L1 cache check
     cache_key = f"metrics:{store_id}"
-    cached = await cache.get(cache_key)
-    if cached:
-        logger.info("metrics_cache_hit", store_id=store_id, trace_id=trace_id)
-        data = json.loads(cached)
-        return MetricsResponse(**data)
+    try:
+        cached = await cache.get(cache_key)
+        if cached:
+            logger.info("metrics_cache_hit", store_id=store_id, trace_id=trace_id)
+            data = json.loads(cached)
+            return MetricsResponse(**data)
+    except Exception as exc:
+        logger.warning("metrics_cache_read_failed", store_id=store_id, error=type(exc).__name__)
 
     result = await compute_metrics(store_id, db)
 
     # Store in cache
-    await cache.setex(
-        cache_key,
-        settings.metrics_cache_ttl_seconds,
-        result.model_dump_json(),
-    )
+    try:
+        await cache.setex(
+            cache_key,
+            settings.metrics_cache_ttl_seconds,
+            result.model_dump_json(),
+        )
+    except Exception as exc:
+        logger.warning("metrics_cache_write_failed", store_id=store_id, error=type(exc).__name__)
     logger.info("metrics_computed", store_id=store_id, trace_id=trace_id,
                 visitors=result.unique_visitors,
                 conversion=result.conversion_rate)
