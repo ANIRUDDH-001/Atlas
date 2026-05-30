@@ -14,6 +14,7 @@ class Detection:
     frame_idx: int
     timestamp: datetime
     camera_id: str
+    frame_crop: object = None  # Added for staff detection
 
 
 @dataclass

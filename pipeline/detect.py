@@ -2,6 +2,8 @@
 YOLO11n + BoT-SORT person detection and tracking.
 """
 import cv2
+import json
+import math
 import numpy as np
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -30,6 +32,20 @@ from pipeline.types import TrackedVisitor
 # Persons crossing from top-to-bottom = ENTRY; bottom-to-top = EXIT
 # The threshold_y is normalised (0.0–1.0) relative to frame height
 DIRECTION_HISTORY: dict[int, list[float]] = {}  # track_id → [cy_history]
+
+
+def _point_in_polygon(px: float, py: float, polygon: list[list[float]]) -> bool:
+    """Ray-casting point-in-polygon test (normalized coords)."""
+    n = len(polygon)
+    inside = False
+    j = n - 1
+    for i in range(n):
+        xi, yi = polygon[i]
+        xj, yj = polygon[j]
+        if ((yi > py) != (yj > py)) and (px < (xj - xi) * (py - yi) / (yj - yi) + xi):
+            inside = not inside
+        j = i
+    return inside
 
 
 class Detector:
@@ -86,6 +102,22 @@ class Detector:
         frame_idx = 0
         processed = 0
         direction_history: dict[int, list[float]] = {}
+        track_frame_counts: dict[int, int] = {}
+        track_centroids: dict[int, list[tuple[float, float]]] = {}
+
+        # Load ROI mask for this camera if available (Fix 5)
+        roi_polygon: list[list[float]] | None = None
+        try:
+            layout_file = Path(self.config.store_layout_path)
+            if layout_file.exists():
+                layout_data = json.loads(layout_file.read_text())
+                for _store_id, store_cfg in layout_data.items():
+                    cam_cfg = store_cfg.get("cameras", {}).get(camera_id, {})
+                    if "roi_mask" in cam_cfg:
+                        roi_polygon = cam_cfg["roi_mask"]
+                        break
+        except Exception:
+            roi_polygon = None
 
         logger.info("clip_start", video=str(video_path),
                     camera_id=camera_id, fps=fps)
@@ -121,6 +153,41 @@ class Detector:
                     bbox = tuple(box.xyxy[0].cpu().numpy().astype(float))
                     conf = float(box.conf[0].cpu().numpy())
 
+                    # Fix 4: Minimum bounding box area filter
+                    area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+                    if area < self.config.min_bbox_area:
+                        continue
+
+                    # Fix 2: Minimum track lifespan filter
+                    track_frame_counts[track_id] = track_frame_counts.get(track_id, 0) + 1
+                    if track_frame_counts[track_id] < self.config.min_track_frames:
+                        continue
+
+                    # Compute centroid for direction history + suppression checks
+                    cx = (bbox[0] + bbox[2]) / 2.0
+                    cy = (bbox[1] + bbox[3]) / 2.0
+
+                    # Fix 3: Static object suppression
+                    if track_id not in track_centroids:
+                        track_centroids[track_id] = []
+                    track_centroids[track_id].append((cx, cy))
+                    track_centroids[track_id] = track_centroids[track_id][-self.config.static_suppress_frames:]
+                    if len(track_centroids[track_id]) >= self.config.static_suppress_frames:
+                        first = track_centroids[track_id][0]
+                        max_disp = max(
+                            math.dist(p, first) for p in track_centroids[track_id]
+                        )
+                        if max_disp < self.config.static_suppress_px:
+                            continue
+
+                    # Fix 5: ROI mask filter (mirror-zone suppression)
+                    if roi_polygon is not None:
+                        frame_h, frame_w = result.orig_shape[:2]
+                        cx_norm = cx / frame_w
+                        cy_norm = cy / frame_h
+                        if not _point_in_polygon(cx_norm, cy_norm, roi_polygon):
+                            continue
+
                     # Update direction history (y-centroid)
                     cy = (bbox[1] + bbox[3]) / 2.0 / result.orig_shape[0]
                     if track_id not in direction_history:
@@ -129,6 +196,16 @@ class Detector:
                     # Keep only last 10 positions
                     direction_history[track_id] = direction_history[track_id][-10:]
 
+                    # Extract frame crop every 15 frames for staff detection
+                    frame_crop = None
+                    if frame_idx % 15 == 0 and result.orig_img is not None:
+                        x1c, y1c, x2c, y2c = map(int, bbox)
+                        x1c, y1c = max(0, x1c), max(0, y1c)
+                        x2c = min(result.orig_shape[1], x2c)
+                        y2c = min(result.orig_shape[0], y2c)
+                        if x2c > x1c and y2c > y1c:
+                            frame_crop = result.orig_img[y1c:y2c, x1c:x2c]
+
                     yield Detection(
                         track_id=track_id,
                         bbox=bbox,
@@ -136,6 +213,7 @@ class Detector:
                         frame_idx=frame_idx,
                         timestamp=frame_time,
                         camera_id=camera_id,
+                        frame_crop=frame_crop,
                     )
                     processed += 1
 
@@ -270,7 +348,7 @@ def run_pipeline(
                 clip_path, store_id, camera_id, clip_start
             ):
                 # Extract frame for embedding and staff detection
-                frame_crop = None  # Crop extracted inline in Detector for now
+                frame_crop = detection.frame_crop
 
                 # Resolve identity via gallery
                 tracked = gallery.resolve(detection, frame_crop)
@@ -316,9 +394,13 @@ def run_pipeline(
                         gallery.mark_exit(detection.track_id,
                                           detection.timestamp.timestamp())
 
-                # Staff classification (sampled every 30 frames)
-                if detection.frame_idx % 30 == 0:
-                    tracked.is_staff = False  # Default; real detection needs frame
+                # Staff classification (sampled every 15 frames via frame_crop)
+                if frame_crop is not None:
+                    tracked.is_staff = staff_det.is_staff(frame_crop, (0, 0, frame_crop.shape[1], frame_crop.shape[0]))
+
+                # Do not emit events for staff members to avoid inflating customer metrics
+                if tracked.is_staff:
+                    continue
 
                 # Emit event
                 emitter.emit(tracked, store_id, (1080, 1920))
@@ -338,11 +420,21 @@ def run_pipeline(
 
 
 def _discover_clips(store_dir: Path) -> list[tuple[str, Path]]:
-    """Return (camera_id, clip_path) tuples in processing order."""
+    """Return (camera_id, clip_path) tuples using camera_map.json."""
+    import json
+    map_path = Path("pipeline/camera_map.json")
+    if map_path.exists():
+        cam_map = json.loads(map_path.read_text())
+    else:
+        cam_map = {}
+
     clip_order = {"ENTRY": 0, "FLOOR": 1, "BILLING": 2}
     clips = []
     for clip_path in store_dir.glob("*.mp4"):
-        camera_id = clip_path.stem.upper()
+        # Look up true camera_id from map, fallback to stem
+        mapped = cam_map.get(clip_path.name, {})
+        camera_id = mapped.get("camera_id", clip_path.stem.upper())
+        
         order = 99
         for key, val in clip_order.items():
             if key in camera_id:

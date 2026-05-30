@@ -3,6 +3,7 @@
 # Modified parameters documented with rationale below.
 
 tracker_type: botsort
+model: auto
 
 # ── Association thresholds ───────────────────────────────────────────────────
 
@@ -10,7 +11,7 @@ tracker_type: botsort
 # Rationale: Retail subjects move slowly; lower threshold catches
 # detections that drift slightly due to slow gait or partial occlusion.
 # Lower value = more aggressive association (fewer ID switches).
-track_high_thresh: 0.20
+track_high_thresh: 0.45
 
 # KEPT: 0.10
 # Low-confidence detections still used in second association pass.
@@ -19,7 +20,7 @@ track_low_thresh: 0.10
 
 # CHANGED: 0.25 → 0.20
 # Rationale: Consistent with track_high_thresh reduction.
-new_track_thresh: 0.20
+new_track_thresh: 0.40
 
 # CHANGED: 30 → 45
 # Rationale: At 15fps, 30 frames = 2 seconds. Retail customers

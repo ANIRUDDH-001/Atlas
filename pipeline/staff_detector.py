@@ -44,8 +44,11 @@ class StaffDetector:
             255,
         ], dtype=np.uint8)
         self._threshold = config.staff_color_ratio_threshold
+        self._black_v_upper = config.staff_black_value_upper
+        self._black_s_upper = config.staff_black_sat_upper
         logger.info("staff_detector_initialized",
                     hue_range=f"{config.staff_hue_lower}–{config.staff_hue_upper}",
+                    black_thresh=f"V<{self._black_v_upper}, S<{self._black_s_upper}",
                     threshold=self._threshold)
 
     def is_staff(self, frame: np.ndarray, bbox: tuple) -> bool:
@@ -116,17 +119,30 @@ class StaffDetector:
 
     def _compute_color_ratio(self, crop_bgr: np.ndarray) -> float:
         """
-        Compute the fraction of pixels in the crop that match the
-        staff uniform HSV colour range.
-
-        Returns a ratio in [0.0, 1.0].
+        Compute the fraction of pixels in the crop that match EITHER
+        the staff uniform HSV colour range OR black clothing (low V, low S).
         """
         hsv = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, self._lower, self._upper)
+        
+        # 1. Original hue-based mask (fallback)
+        mask_hue = cv2.inRange(hsv, self._lower, self._upper)
+        
+        # 2. Black clothing mask (low brightness, low saturation)
+        # H can be anything (0-179)
+        # S must be low (0 to staff_black_sat_upper)
+        # V must be low (0 to staff_black_value_upper)
+        lower_black = np.array([0, 0, 0], dtype=np.uint8)
+        upper_black = np.array([179, self._black_s_upper, self._black_v_upper], dtype=np.uint8)
+        mask_black = cv2.inRange(hsv, lower_black, upper_black)
+        
+        # Combine masks (pixel is staff if it matches EITHER rule)
+        mask_combined = cv2.bitwise_or(mask_hue, mask_black)
+        
         total_pixels = crop_bgr.shape[0] * crop_bgr.shape[1]
         if total_pixels == 0:
             return 0.0
-        matched = int(np.sum(mask > 0))
+            
+        matched = int(np.sum(mask_combined > 0))
         return matched / total_pixels
 
     def calibrate(
