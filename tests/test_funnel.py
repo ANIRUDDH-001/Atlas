@@ -14,7 +14,7 @@
 import pytest
 
 pytestmark = pytest.mark.asyncio
-STORE = "STORE_BLR_002"
+STORE = "STORE_ST1008"
 
 
 class TestFunnelSchema:

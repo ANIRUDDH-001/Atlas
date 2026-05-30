@@ -10,7 +10,7 @@ count = 0
 try:
     for det in detector.process_clip(
         Path("data/test_clip.mp4"),  # use any available test clip
-        "STORE_BLR_002",
+        "STORE_ST1008",
         "CAM_ENTRY_01",
         datetime.now(timezone.utc)
     ):

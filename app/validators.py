@@ -1,14 +1,14 @@
 import re
 from fastapi import HTTPException
 
-STORE_ID_PATTERN = re.compile(r"^STORE_[A-Z]{2,6}_\d{3}$")
+STORE_ID_PATTERN = re.compile(r"^STORE_[A-Z0-9]{2,10}(_\d{3})?$")
 
 def validate_store_id(store_id: str) -> str:
     """
     Validate store_id format. Returns store_id if valid.
     Raises HTTP 400 if invalid.
-    Pattern: STORE_<2-6 uppercase letters>_<3 digits>
-    Example: STORE_BLR_002
+    Pattern: STORE_<2-10 alphanumeric chars>[_<3 digits>]
+    Example: STORE_ST1008, STORE_BLR_002
     """
     if not STORE_ID_PATTERN.match(store_id):
         raise HTTPException(

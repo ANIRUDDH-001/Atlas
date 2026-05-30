@@ -145,11 +145,11 @@ async def async_client():
 # ── Convenience fixtures ──────────────────────────────────────────────────────
 @pytest.fixture
 def valid_single_event():
-    """One valid ENTRY event for STORE_BLR_002."""
+    """One valid ENTRY event for STORE_ST1008."""
     import uuid
     return {
         "event_id":   str(uuid.uuid4()),
-        "store_id":   "STORE_BLR_002",
+        "store_id":   "STORE_ST1008",
         "camera_id":  "CAM_ENTRY_01",
         "visitor_id": "VIS_abc123",
         "event_type": "ENTRY",
@@ -164,4 +164,4 @@ def valid_single_event():
 @pytest.fixture
 def malformed_event():
     """An event missing required fields."""
-    return {"event_id": "not-a-uuid", "store_id": "STORE_BLR_002"}
+    return {"event_id": "not-a-uuid", "store_id": "STORE_ST1008"}

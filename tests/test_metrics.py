@@ -17,7 +17,7 @@ from datetime import datetime
 
 pytestmark = pytest.mark.asyncio
 
-VALID_STORE   = "STORE_BLR_002"
+VALID_STORE   = "STORE_ST1008"
 INVALID_STORE = "not-a-store"
 
 

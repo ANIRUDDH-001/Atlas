@@ -15,7 +15,7 @@ from app.session import (
 
 pytestmark = pytest.mark.asyncio
 
-VALID_STORE = "STORE_BLR_002"
+VALID_STORE = "STORE_ST1008"
 
 class TestSessionHelpers:
     async def test_empty_store_session_helpers(self):

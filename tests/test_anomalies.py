@@ -17,7 +17,7 @@ import uuid
 from copy import deepcopy
 
 pytestmark = pytest.mark.asyncio
-STORE = "STORE_BLR_002"
+STORE = "STORE_ST1008"
 
 VALID_BASE_EVENT = {
     "store_id":   STORE,

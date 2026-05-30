@@ -39,9 +39,9 @@ class TestPOSLoader:
     async def test_load_pos_transactions_success(self):
         csv_content = (
             "store_id,transaction_id,timestamp,basket_value_inr\n"
-            "STORE_BLR_002,TX_1,2026-03-03T10:00:00Z,150.5\n"
-            "STORE_BLR_002,TX_2,2026-03-03T10:05:00Z,malformed\n"
-            "STORE_BLR_002,TX_3,,250.0\n" # skipped
+            "STORE_ST1008,TX_1,2026-03-03T10:00:00Z,150.5\n"
+            "STORE_ST1008,TX_2,2026-03-03T10:05:00Z,malformed\n"
+            "STORE_ST1008,TX_3,,250.0\n" # skipped
         )
         with tempfile.NamedTemporaryFile("w", delete=False, suffix=".csv") as f:
             f.write(csv_content)

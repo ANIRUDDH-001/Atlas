@@ -135,7 +135,7 @@ class TestReEntryFunnel:
         """Visitor with ENTRY+EXIT+REENTRY = 1 session in funnel."""
         await async_client.post("/events/ingest",
                                 json={"events": reentry_events})
-        r = await async_client.get("/stores/STORE_BLR_002/funnel")
+        r = await async_client.get("/stores/STORE_ST1008/funnel")
         assert r.status_code == 200
         stages = r.json()["funnel"]
         entry_count = next(s["count"] for s in stages if s["stage"] == "Entry")
