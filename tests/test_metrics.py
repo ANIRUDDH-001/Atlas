@@ -1,11 +1,15 @@
 # PROMPT: "Generate pytest-asyncio tests for GET /stores/{id}/metrics covering:
-#  1. Zero visitors: unique_visitors=0, conversion_rate=null, abandonment_rate=null
-#  2. data_confidence=LOW when unique_visitors < 20
-#  3. Invalid store_id format returns HTTP 400
-#  4. Response matches MetricsResponse schema (all required fields present)
-#  5. Redis cache: second call is served from cache (metrics_cache_hit logged)
-# Use httpx AsyncClient, pytest-asyncio, conftest fixtures."
-# CHANGES MADE: Added data_confidence assertion for empty store.
+#  zero-visitor store (unique_visitors=0, conversion_rate=null not 0),
+#  data_confidence=LOW when unique_visitors<20,
+#  invalid store_id returns HTTP 400,
+#  all required fields present in response schema,
+#  as_of field is parseable ISO-8601 datetime.
+#  Use httpx AsyncClient, pytest-asyncio."
+# CHANGES MADE: Added assertion that avg_dwell_by_zone is [] not null for empty store.
+#   Added current_queue_depth=0 assertion for empty store (not null).
+#   Fixed store ID to STORE_ST1008 in all assertions.
+#   AI generated conversion_rate==0.0 assertion - corrected to asserting it is None.
+
 #   Added as_of field check (must be present and parseable datetime).
 
 import pytest

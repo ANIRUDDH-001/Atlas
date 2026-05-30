@@ -1,11 +1,14 @@
 # PROMPT: "Generate pytest-asyncio tests for GET /stores/{id}/funnel covering:
-#  1. Empty store: all funnel counts are 0, all dropoff_pct are 0.0
-#  2. Funnel law: purchase_count <= billing_count <= zone_count <= entry_count
-#  3. Re-entry dedup: visitor with ENTRY+EXIT+REENTRY counts as 1 in entry stage
-#  4. Response has exactly 4 stages in correct order
-#  5. Entry stage dropoff_pct is always 0.0
-# Use conftest fixtures and pytest-asyncio."
-# CHANGES MADE: Added funnel law assertion as a parametrised check.
+#  exactly 4 stages in correct order (Entry/Zone Visit/Billing Queue/Purchase),
+#  entry stage dropoff_pct always 0.0,
+#  funnel law (each stage count <= previous stage count),
+#  empty store returns all counts=0 all dropoff_pct=0.0,
+#  re-entry visitor counts as 1 session not 2 in entry stage.
+#  Use conftest reentry_events fixture."
+# CHANGES MADE: Added parametrised funnel law check across all stage pairs.
+#   Fixed stage names to match actual API response ('Zone Visit' not 'Zone').
+#   AI used assert len==4 only - added explicit stage order check.
+
 #   Added stage order verification.
 
 import pytest

@@ -1,12 +1,15 @@
 # PROMPT: "Generate pytest-asyncio tests for GET /stores/{id}/anomalies covering:
-#  1. No anomalies when all thresholds are below trigger: returns empty list
-#  2. BILLING_QUEUE_SPIKE WARN when queue_depth=6 (> warn threshold of 5)
-#  3. BILLING_QUEUE_SPIKE CRITICAL when queue_depth=9 (> critical threshold of 8)
-#  4. STALE_FEED CRITICAL when store has no events at all
-#  5. All anomaly records have non-empty suggested_action strings
-#  6. Response schema has store_id, anomalies list, as_of fields
-# Use conftest fixtures and pytest-asyncio."
-# CHANGES MADE: Added suggested_action non-empty check for all anomaly types.
+#  new store with no events -> STALE_FEED anomaly severity=CRITICAL,
+#  all anomaly records have non-empty suggested_action strings (>10 chars),
+#  severity is exactly one of INFO/WARN/CRITICAL,
+#  no queue anomaly when queue_depth=0,
+#  response has store_id, anomalies list, as_of fields.
+#  Use pytest-asyncio and conftest fixtures."
+# CHANGES MADE: Added BILLING_QUEUE_JOIN event fixture with queue_depth=6.
+#   Added suggested_action length assertion (>10 chars - rejects empty strings).
+#   AI generated exact threshold value assertions - removed as they couple
+#   tests to config values; now only check severity category.
+
 #   Added severity enum value check (must be INFO/WARN/CRITICAL exactly).
 
 import pytest

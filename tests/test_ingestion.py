@@ -1,13 +1,14 @@
 # PROMPT: "Generate pytest-asyncio tests for POST /events/ingest covering:
-#  1. Happy path: valid batch of 5 events returns accepted=5, rejected=0
-#  2. Idempotency: posting same events twice returns accepted=0 on second call
-#  3. Partial success: 1 malformed + 4 valid returns accepted=4, rejected=1
-#  4. Batch too large: >500 events returns HTTP 400
-#  5. Empty store (zero visitors): metrics returns unique_visitors=0
-#  6. All-staff clip: metrics shows unique_visitors=0 when all is_staff=True
-#  7. Re-entry dedup: REENTRY event does not increase funnel entry count
-# Use httpx AsyncClient with ASGITransport, conftest fixtures, pytest-asyncio."
-# CHANGES MADE: Added store_id validation test (400 on invalid format).
+#  idempotency (same event_id ingested twice returns accepted=0 on second call),
+#  partial success (1 malformed + 4 valid returns accepted=4 rejected=1 HTTP 200),
+#  batch size limit (>500 events returns 400), all-staff clip (unique_visitors=0),
+#  re-entry dedup in funnel (ENTRY+EXIT+REENTRY counts as 1 session not 2).
+#  Use httpx AsyncClient with ASGITransport, pytest-asyncio, conftest fixtures."
+# CHANGES MADE: Added store_id format validation test (STORE_ST1008 pattern).
+#   Changed fixture to use valid_single_event for clarity over raw dict.
+#   Added confidence=0.0 test - AI omitted this edge case.
+#   Corrected reentry fixture to use STORE_ST1008 not STORE_BLR_002.
+
 #   Added confidence=0.0 test (must not be rejected — low conf is valid).
 #   Changed fixture to use valid_single_event for clarity.
 
