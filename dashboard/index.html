@@ -571,21 +571,64 @@
       const [anomalies, setAnomalies] = React.useState([]);
       const [history, setHistory] = React.useState([]);
 
+      const [error, setError] = React.useState(null);
+
       // SSE Connection
       React.useEffect(() => {
-        const es = new EventSource(`${window.API_BASE}/stores/${window.STORE_ID}/metrics/stream`);
-        es.onopen    = () => setSseStatus("LIVE");
-        es.onmessage = (e) => { 
-          const d = JSON.parse(e.data); 
-          setMetrics(d);
-          setHistory(prev => {
-            const t = new Date(d.as_of || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            const next = [...prev, { t, visitors: d.unique_visitors }];
-            return next.length > 30 ? next.slice(next.length - 30) : next;
-          });
+        let es = null;
+        let reconnectDelay = 1000;   // Start at 1s, max 30s
+        let reconnectTimer = null;
+        let staleTimer     = null;
+
+        const connect = () => {
+          setSseStatus("Connecting…");
+          es = new EventSource(`${window.API_BASE}/stores/${window.STORE_ID}/metrics/stream`);
+
+          es.onopen = () => {
+            setSseStatus("LIVE");
+            reconnectDelay = 1000;  // Reset backoff on successful connect
+            setError(null);
+          };
+
+          es.onmessage = (e) => {
+            try {
+              const data = JSON.parse(e.data);
+              if (data.error) { setError(data.error); return; }
+              setMetrics(data);
+              setError(null);
+
+              // Reset stale timer — if no message in 15s, show warning
+              clearTimeout(staleTimer);
+              staleTimer = setTimeout(() => {
+                setSseStatus("STALE");
+              }, 15_000);
+
+              setHistory(prev => [
+                ...prev.slice(-29),
+                { t: fmt.time(data.as_of), visitors: data.unique_visitors }
+              ]);
+            } catch (err) {
+              setError("Parse error: " + err.message);
+            }
+          };
+
+          es.onerror = () => {
+            es.close();
+            setSseStatus("RECONNECTING…");
+            reconnectTimer = setTimeout(() => {
+              reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+              connect();
+            }, reconnectDelay);
+          };
         };
-        es.onerror   = () => setSseStatus("DISCONNECTED");
-        return () => es.close();
+
+        connect();
+
+        return () => {
+          if (es)            es.close();
+          if (reconnectTimer) clearTimeout(reconnectTimer);
+          if (staleTimer)     clearTimeout(staleTimer);
+        };
       }, []);
 
       // Anomaly Poll
