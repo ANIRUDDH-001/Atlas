@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Live Store Intelligence Dashboard</title>
+  
+  <!-- CDN dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  
+  <style>
+    :root {
+      --bg: #0f0f0f; 
+      --surface: #1a1a1a; 
+      --border: #2a2a2a;
+      --text: #e0e0e0; 
+      --text-dim: #888; 
+      --accent: #7cfc00;
+      --info: #4fc3f7; 
+      --warn: #ffb74d; 
+      --critical: #ef5350;
+      --font: 'Courier New', monospace;
+    }
+    
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      margin: 0;
+      padding: 20px;
+    }
+    
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-top: 20px;
+    }
+    
+    .card {
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      padding: 15px;
+      border-radius: 4px;
+    }
+    
+    .severity-INFO { color: var(--info); }
+    .severity-WARN { color: var(--warn); }
+    .severity-CRITICAL { color: var(--critical); }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .status-LIVE { color: var(--accent); }
+    .status-DISCONNECTED { color: var(--critical); }
+    .status-CONNECTING { color: var(--warn); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    window.API_BASE = "http://localhost:8000";
+    window.STORE_ID = "STORE_BLR_002";
+
+    // Stub Components
+    const MetricsPanel = ({ metrics }) => (
+      <div className="card">
+        <h3>Metrics Panel</h3>
+        <div>{metrics ? "Metrics Loaded" : "Waiting for data..."}</div>
+      </div>
+    );
+    
+    const VisitorTrendChart = () => (
+      <div className="card" style={{ gridColumn: "span 2" }}>
+        <h3>Visitor Trend</h3>
+      </div>
+    );
+    
+    const FunnelPanel = () => (
+      <div className="card">
+        <h3>Conversion Funnel</h3>
+      </div>
+    );
+    
+    const HeatmapPanel = () => (
+      <div className="card" style={{ gridColumn: "span 2" }}>
+        <h3>Zone Heatmap</h3>
+      </div>
+    );
+    
+    const AnomalyPanel = ({ anomalies }) => (
+      <div className="card">
+        <h3>Anomalies</h3>
+        <div>{anomalies.length} detected</div>
+      </div>
+    );
+
+    const Header = ({ storeId, status }) => (
+      <header>
+        <h2>Store: {storeId}</h2>
+        <div className={`status-${status}`}>● SSE: {status}</div>
+      </header>
+    );
+
+    const Dashboard = () => {
+      const [sseStatus, setSseStatus] = React.useState("CONNECTING");
+      const [metrics, setMetrics] = React.useState(null);
+      const [anomalies, setAnomalies] = React.useState([]);
+
+      // SSE Connection
+      React.useEffect(() => {
+        const es = new EventSource(`${window.API_BASE}/stores/${window.STORE_ID}/metrics/stream`);
+        es.onopen    = () => setSseStatus("LIVE");
+        es.onmessage = (e) => { const d = JSON.parse(e.data); setMetrics(d); };
+        es.onerror   = () => setSseStatus("DISCONNECTED");
+        return () => es.close();
+      }, []);
+
+      // Anomaly Poll
+      React.useEffect(() => {
+        const poll = async () => {
+          try {
+            const r = await fetch(`${window.API_BASE}/stores/${window.STORE_ID}/anomalies`);
+            const d = await r.json();
+            setAnomalies(d.anomalies || []);
+          } catch (e) {
+            console.error("Anomaly fetch error", e);
+          }
+        };
+        poll();
+        const id = setInterval(poll, 15000);
+        return () => clearInterval(id);
+      }, []);
+
+      return (
+        <div>
+          <Header storeId={window.STORE_ID} status={sseStatus} />
+          
+          <div className="dashboard-grid">
+            <MetricsPanel metrics={metrics} />
+            <VisitorTrendChart />
+            <FunnelPanel />
+            <HeatmapPanel />
+            <AnomalyPanel anomalies={anomalies} />
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<Dashboard />);
+  </script>
+</body>
+</html>
