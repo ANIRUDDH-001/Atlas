@@ -6,6 +6,7 @@ from sqlalchemy import text
 
 from app.db import get_db
 from app.models import HeatmapResponse, HeatmapZone
+from app.validators import validate_store_id
 
 router = APIRouter(tags=["analytics"])
 logger = structlog.get_logger()
@@ -22,6 +23,7 @@ async def get_heatmap(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> HeatmapResponse:
+    store_id = validate_store_id(store_id)
     trace_id = getattr(request.state, "trace_id", "unknown")
     now = datetime.now(timezone.utc)
 

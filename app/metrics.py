@@ -10,6 +10,7 @@ from app.cache import get_redis
 from app.models import MetricsResponse, ZoneDwell
 from app.config import get_settings
 from app.constants import POS_CORRELATION_WINDOW_SECONDS
+from app.validators import validate_store_id
 
 router = APIRouter(tags=["analytics"])
 logger = structlog.get_logger()
@@ -28,6 +29,7 @@ async def get_metrics(
     db: AsyncSession = Depends(get_db),
     cache=Depends(get_redis),
 ) -> MetricsResponse:
+    store_id = validate_store_id(store_id)
     trace_id = getattr(request.state, "trace_id", "unknown")
 
     # L1 cache check

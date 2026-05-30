@@ -9,6 +9,8 @@ import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+
+MAX_REQUEST_BODY_BYTES = 5 * 1024 * 1024  # 5MB
 from sqlalchemy.exc import OperationalError
 
 from app.config import get_settings
@@ -71,6 +73,17 @@ app.add_middleware(
 
 
 # ── Request logging middleware ─────────────────────────────────────────────────
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_REQUEST_BODY_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={"error": "request_too_large",
+                     "max_bytes": MAX_REQUEST_BODY_BYTES},
+        )
+    return await call_next(request)
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     trace_id = str(uuid.uuid4())

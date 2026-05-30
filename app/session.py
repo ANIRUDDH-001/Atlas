@@ -27,20 +27,28 @@ async def count_unique_sessions(
     REENTRY does not add to this count.
     Staff excluded.
     """
-    date_filter = "timestamp::date = :target_date" if target_date else \
-                  "timestamp::date = CURRENT_DATE"
     params: dict = {"store_id": store_id}
     if target_date:
         params["target_date"] = target_date
+        query = text("""
+            SELECT COUNT(DISTINCT visitor_id) AS cnt
+            FROM events
+            WHERE store_id = :store_id
+              AND is_staff = FALSE
+              AND event_type = 'ENTRY'
+              AND timestamp::date = :target_date
+        """)
+    else:
+        query = text("""
+            SELECT COUNT(DISTINCT visitor_id) AS cnt
+            FROM events
+            WHERE store_id = :store_id
+              AND is_staff = FALSE
+              AND event_type = 'ENTRY'
+              AND timestamp::date = CURRENT_DATE
+        """)
 
-    row = await db.execute(text(f"""
-        SELECT COUNT(DISTINCT visitor_id) AS cnt
-        FROM events
-        WHERE store_id = :store_id
-          AND is_staff = FALSE
-          AND event_type = 'ENTRY'
-          AND {date_filter}
-    """), params)
+    row = await db.execute(query, params)
     return row.scalar() or 0
 
 

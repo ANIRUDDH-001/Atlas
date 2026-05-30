@@ -7,6 +7,7 @@ from sqlalchemy import text
 from app.db import get_db
 from app.models import FunnelResponse, FunnelStage
 from app.constants import POS_CORRELATION_WINDOW_SECONDS
+from app.validators import validate_store_id
 
 router = APIRouter(tags=["analytics"])
 logger = structlog.get_logger()
@@ -23,6 +24,7 @@ async def get_funnel(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> FunnelResponse:
+    store_id = validate_store_id(store_id)
     trace_id = getattr(request.state, "trace_id", "unknown")
     now = datetime.now(timezone.utc)
 

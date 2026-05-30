@@ -8,6 +8,7 @@ from app.db import get_db
 from app.cache import get_redis
 from app.models import EventBatch, StoreEvent, IngestResponse, IngestError
 from app.constants import MAX_INGEST_BATCH_SIZE
+from app.validators import validate_store_id
 
 router = APIRouter(tags=["events"])
 logger = structlog.get_logger()
@@ -47,6 +48,7 @@ async def ingest_events(
     affected_stores: set[str] = set()
 
     for event in payload.events:
+        validate_store_id(event.store_id)
         try:
             await _insert_event(db, event)
             accepted_ids.append(event.event_id)
