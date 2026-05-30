@@ -318,11 +318,114 @@
       );
     }
     
-    const HeatmapPanel = () => (
-      <div className="card" style={{ gridColumn: "span 2" }}>
-        <h3>Zone Heatmap</h3>
-      </div>
-    );
+    function HeatmapPanel({ storeId, apiBase }) {
+      const [heatmap, setHeatmap] = React.useState(null);
+      const [loading, setLoading] = React.useState(true);
+      const [error, setError]     = React.useState(null);
+
+      React.useEffect(() => {
+        const fetchHeatmap = async () => {
+          try {
+            const r = await fetch(`${apiBase}/stores/${storeId}/heatmap`);
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const d = await r.json();
+            setHeatmap(d);
+            setError(null);
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+        fetchHeatmap();
+        const id = setInterval(fetchHeatmap, 30_000);
+        return () => clearInterval(id);
+      }, [storeId, apiBase]);
+
+      // Maps normalised_score (0–100) to a CSS background colour.
+      // 0   = cool blue  (hsl 240 50% 20%)
+      // 50  = warm amber (hsl 30  80% 30%)
+      // 100 = hot red    (hsl 0   90% 35%)
+      const scoreToColor = (score) => {
+        const hue = Math.round(240 - (score / 100) * 240);
+        const sat = Math.round(50  + (score / 100) * 40);
+        const lit = Math.round(20  + (score / 100) * 15);
+        return `hsl(${hue}, ${sat}%, ${lit}%)`;
+      };
+
+      const textColor = (score) => score > 60 ? "#fff" : "var(--text)";
+
+      return (
+        <div className="card" style={{ gridColumn: "span 2" }}>
+          <div className="card-title">Zone Heatmap</div>
+
+          {loading && <div className="loading">Loading heatmap…</div>}
+          {error   && <div style={{ color: "var(--critical)", fontSize: "0.8rem" }}>
+            Error: {error}
+          </div>}
+
+          {heatmap && (
+            <>
+              {heatmap.data_confidence === "LOW" && (
+                <div style={{
+                  background: "#4a3000",
+                  color: "var(--warn)",
+                  fontSize: "0.7rem",
+                  padding: "4px 8px",
+                  borderRadius: 3,
+                  marginBottom: 8,
+                }}>
+                  ⚠ Low confidence — fewer than 20 sessions today
+                </div>
+              )}
+
+              {heatmap.zones.length === 0
+                ? <div className="loading">No zone data yet</div>
+                : (
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))",
+                    gap: 6,
+                    marginTop: 6,
+                  }}>
+                    {heatmap.zones.map((zone) => (
+                      <div key={zone.zone_id} style={{
+                        background:   scoreToColor(zone.normalised_score),
+                        color:        textColor(zone.normalised_score),
+                        borderRadius: 4,
+                        padding:      "8px 6px",
+                        textAlign:    "center",
+                        cursor:       "default",
+                      }}
+                      title={`${zone.zone_id}: ${zone.visit_count} visits, ${zone.avg_dwell_sec}s avg dwell`}
+                      >
+                        <div style={{ fontSize: "0.65rem", fontWeight: "bold",
+                                      letterSpacing: "0.03em", marginBottom: 3 }}>
+                          {zone.zone_id}
+                        </div>
+                        <div style={{ fontSize: "1rem", fontWeight: "bold",
+                                      lineHeight: 1 }}>
+                          {zone.visit_count}
+                        </div>
+                        <div style={{ fontSize: "0.6rem", opacity: 0.85,
+                                      marginTop: 2 }}>
+                          {fmt.sec(zone.avg_dwell_sec)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+
+              <div style={{ fontSize: "0.65rem", color: "var(--text-dim)",
+                            marginTop: 8, textAlign: "right" }}>
+                {fmt.time(heatmap.as_of)}
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
     
     const AnomalyPanel = ({ anomalies }) => (
       <div className="card">
@@ -385,7 +488,7 @@
             <MetricsPanel metrics={metrics} />
             <VisitorTrendChart history={history} />
             <FunnelPanel storeId={window.STORE_ID} apiBase={window.API_BASE} />
-            <HeatmapPanel />
+            <HeatmapPanel storeId={window.STORE_ID} apiBase={window.API_BASE} />
             <AnomalyPanel anomalies={anomalies} />
           </div>
         </div>
