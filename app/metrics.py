@@ -1,9 +1,160 @@
-from fastapi import APIRouter
+import json
+import structlog
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
+
+from app.db import get_db
+from app.cache import get_redis
+from app.models import MetricsResponse, ZoneDwell
+from app.config import get_settings
+from app.constants import POS_CORRELATION_WINDOW_SECONDS
+
 router = APIRouter(tags=["analytics"])
+logger = structlog.get_logger()
+settings = get_settings()
 
-async def compute_metrics(store_id: str):
-    raise NotImplementedError
 
-@router.get("/{store_id}/metrics")
-async def get_metrics(store_id: str):
-    return {"status": "not_implemented"}, 501
+@router.get(
+    "/{store_id}/metrics",
+    response_model=MetricsResponse,
+    summary="Real-time store metrics including conversion rate",
+    responses={503: {"description": "Database unavailable"}},
+)
+async def get_metrics(
+    store_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    cache=Depends(get_redis),
+) -> MetricsResponse:
+    trace_id = getattr(request.state, "trace_id", "unknown")
+
+    # L1 cache check
+    cache_key = f"metrics:{store_id}"
+    cached = await cache.get(cache_key)
+    if cached:
+        logger.info("metrics_cache_hit", store_id=store_id, trace_id=trace_id)
+        data = json.loads(cached)
+        return MetricsResponse(**data)
+
+    result = await compute_metrics(store_id, db)
+
+    # Store in cache
+    await cache.setex(
+        cache_key,
+        settings.metrics_cache_ttl_seconds,
+        result.model_dump_json(),
+    )
+    logger.info("metrics_computed", store_id=store_id, trace_id=trace_id,
+                visitors=result.unique_visitors,
+                conversion=result.conversion_rate)
+    return result
+
+
+async def compute_metrics(
+    store_id: str,
+    db: AsyncSession = None,
+) -> MetricsResponse:
+    """
+    Core computation function — also called by SSE stream.
+    If db is None, opens its own session.
+    """
+    from app.db import AsyncSessionLocal
+
+    async def _compute(session: AsyncSession) -> MetricsResponse:
+        now = datetime.now(timezone.utc)
+
+        # 1. Unique customer visitors today (ENTRY events, not staff)
+        visitors_row = await session.execute(text("""
+            SELECT COUNT(DISTINCT visitor_id) AS cnt
+            FROM events
+            WHERE store_id = :store_id
+              AND is_staff = FALSE
+              AND event_type = 'ENTRY'
+              AND timestamp::date = CURRENT_DATE
+        """), {"store_id": store_id})
+        unique_visitors = visitors_row.scalar() or 0
+
+        # 2. Conversion rate via 5-minute POS window join
+        conversions_row = await session.execute(text("""
+            SELECT COUNT(DISTINCT e.visitor_id) AS cnt
+            FROM events e
+            JOIN pos_transactions p
+              ON e.store_id = p.store_id
+             AND e.timestamp BETWEEN
+                 p.timestamp - INTERVAL '1 second' * :window
+                 AND p.timestamp
+            WHERE e.store_id = :store_id
+              AND e.zone_id IN ('BILLING', 'CHECKOUT', 'CASH_COUNTER')
+              AND e.is_staff = FALSE
+              AND e.timestamp::date = CURRENT_DATE
+        """), {"store_id": store_id,
+               "window": POS_CORRELATION_WINDOW_SECONDS})
+        converted = conversions_row.scalar() or 0
+        conversion_rate = (
+            round(converted / unique_visitors, 4) if unique_visitors > 0
+            else None
+        )
+
+        # 3. Average dwell per zone (ZONE_DWELL events only)
+        dwell_rows = await session.execute(text("""
+            SELECT zone_id, AVG(dwell_ms) / 1000.0 AS avg_dwell_sec
+            FROM events
+            WHERE store_id = :store_id
+              AND event_type = 'ZONE_DWELL'
+              AND is_staff = FALSE
+              AND timestamp::date = CURRENT_DATE
+            GROUP BY zone_id
+            ORDER BY avg_dwell_sec DESC
+        """), {"store_id": store_id})
+        dwell_by_zone = [
+            ZoneDwell(zone_id=row.zone_id,
+                      avg_dwell_sec=round(float(row.avg_dwell_sec), 1))
+            for row in dwell_rows.fetchall()
+        ]
+
+        # 4. Current queue depth (latest BILLING_QUEUE_JOIN)
+        queue_row = await session.execute(text("""
+            SELECT queue_depth FROM events
+            WHERE store_id = :store_id
+              AND event_type = 'BILLING_QUEUE_JOIN'
+              AND queue_depth IS NOT NULL
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """), {"store_id": store_id})
+        queue_depth = queue_row.scalar() or 0
+
+        # 5. Abandonment rate
+        abandon_row = await session.execute(text("""
+            SELECT COUNT(*) AS cnt FROM events
+            WHERE store_id = :store_id
+              AND event_type = 'BILLING_QUEUE_ABANDON'
+              AND is_staff = FALSE
+              AND timestamp::date = CURRENT_DATE
+        """), {"store_id": store_id})
+        abandon_count = abandon_row.scalar() or 0
+        abandonment_rate = (
+            round(abandon_count / unique_visitors, 4)
+            if unique_visitors > 0 else None
+        )
+
+        # 6. Data confidence flag
+        data_confidence = "LOW" if unique_visitors < 20 else "HIGH"
+
+        return MetricsResponse(
+            store_id=store_id,
+            unique_visitors=unique_visitors,
+            conversion_rate=conversion_rate,
+            avg_dwell_by_zone=dwell_by_zone,
+            current_queue_depth=queue_depth,
+            abandonment_rate=abandonment_rate,
+            as_of=now,
+            data_confidence=data_confidence,
+        )
+
+    if db is not None:
+        return await _compute(db)
+    else:
+        async with AsyncSessionLocal() as session:
+            return await _compute(session)
