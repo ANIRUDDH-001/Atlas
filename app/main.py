@@ -187,7 +187,7 @@ async def metrics_stream(store_id: str, request: Request):
             except Exception as e:
                 logger.warning("sse_metrics_error", store_id=store_id,
                                error=str(e))
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                yield f"data: {json.dumps({'error': 'internal_server_error'})}\n\n"
             await asyncio.sleep(5)
 
     return StreamingResponse(

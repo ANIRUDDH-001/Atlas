@@ -13,6 +13,25 @@ from app.validators import validate_store_id
 router = APIRouter(tags=["events"])
 logger = structlog.get_logger()
 
+# Rate limiting: 100 ingest requests per minute per source IP
+RATE_LIMIT_REQUESTS = 100
+RATE_LIMIT_WINDOW   = 60   # seconds
+
+async def _check_rate_limit(request: Request, cache) -> bool:
+    """
+    Returns True if request is within rate limit, False if exceeded.
+    Uses Redis INCR + EXPIRE sliding window.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    key = f"ratelimit:ingest:{client_ip}"
+    try:
+        count = await cache.incr(key)
+        if count == 1:
+            await cache.expire(key, RATE_LIMIT_WINDOW)
+        return count <= RATE_LIMIT_REQUESTS
+    except Exception:
+        return True  # Redis down → allow request (fail open)
+
 
 @router.post(
     "/events/ingest",
@@ -30,6 +49,18 @@ async def ingest_events(
     cache=Depends(get_redis),
 ) -> IngestResponse:
     trace_id = getattr(request.state, "trace_id", "unknown")
+
+    if not await _check_rate_limit(request, cache):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "rate_limit_exceeded",
+                "limit": RATE_LIMIT_REQUESTS,
+                "window_seconds": RATE_LIMIT_WINDOW,
+            },
+            headers={"Retry-After": str(RATE_LIMIT_WINDOW)},
+        )
 
     # Batch size guard (Pydantic enforces max_length=500 but belt-and-suspenders)
     if len(payload.events) > MAX_INGEST_BATCH_SIZE:
@@ -62,7 +93,7 @@ async def ingest_events(
             )
             rejected.append(IngestError(
                 event_id=event.event_id,
-                reason=str(exc),
+                reason="internal_error",
             ))
 
     # Commit all accepted events in one transaction
