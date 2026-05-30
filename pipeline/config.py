@@ -16,8 +16,8 @@ class PipelineConfig:
     person_class_id: int = 0      # COCO class 0 = person
 
     # Tracking
-    tracker_type: str = "botsort.yaml"
-    track_buffer: int = 30        # Frames before track is lost
+    tracker_type: str = "pipeline/botsort_retail.yaml"
+    track_buffer: int = 45        # Frames before track is lost
 
     # Re-ID
     reid_model: str = "osnet_x0_25_msmt17.pt"

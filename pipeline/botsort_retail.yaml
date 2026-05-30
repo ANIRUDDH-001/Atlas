@@ -1,0 +1,62 @@
+# BoT-SORT Configuration — Tuned for Retail CCTV
+# Reference: ultralytics/cfg/trackers/botsort.yaml
+# Modified parameters documented with rationale below.
+
+tracker_type: botsort
+
+# ── Association thresholds ───────────────────────────────────────────────────
+
+# CHANGED: 0.25 → 0.20
+# Rationale: Retail subjects move slowly; lower threshold catches
+# detections that drift slightly due to slow gait or partial occlusion.
+# Lower value = more aggressive association (fewer ID switches).
+track_high_thresh: 0.20
+
+# KEPT: 0.10
+# Low-confidence detections still used in second association pass.
+# Critical for billing queue scenes where people overlap.
+track_low_thresh: 0.10
+
+# CHANGED: 0.25 → 0.20
+# Rationale: Consistent with track_high_thresh reduction.
+new_track_thresh: 0.20
+
+# CHANGED: 30 → 45
+# Rationale: At 15fps, 30 frames = 2 seconds. Retail customers
+# frequently pause behind displays for 3–5 seconds (partial occlusion).
+# 45 frames = 3 seconds buffer prevents premature track termination.
+track_buffer: 45
+
+# KEPT: 0.8
+# Standard IoU matching threshold. Works well for retail densities.
+match_thresh: 0.8
+
+# KEPT: True
+# Fusing confidence with IoU distance improves matching.
+fuse_score: True
+
+# ── Global Motion Compensation ───────────────────────────────────────────────
+
+# KEPT: sparseOptFlow
+# Fixed CCTV cameras — GMC compensates for minor vibration.
+# Alternative 'ecc' is more expensive; not needed for fixed cameras.
+gmc_method: sparseOptFlow
+
+# ── ReID model (appearance-based matching) ───────────────────────────────────
+
+# CHANGED: False → True
+# Rationale: Retail has high density and slow movement. Appearance
+# features reduce ID switches when people cross paths or occlude.
+# OSNet x0.25 is fast enough for CPU inference at 15fps.
+with_reid: True
+
+# CHANGED: 0.5 → 0.6
+# Rationale: With face blur applied, appearance embeddings rely on
+# clothing and body shape. Slightly higher proximity threshold
+# reduces false matches between people in similar clothing.
+proximity_thresh: 0.6
+
+# CHANGED: 0.25 → 0.30
+# Rationale: Consistent with proximity_thresh increase. Higher
+# appearance threshold filters out low-quality embedding matches.
+appearance_thresh: 0.30
