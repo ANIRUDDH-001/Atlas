@@ -15,8 +15,6 @@ from ultralytics import YOLO
 from pipeline.types import Detection
 from pipeline.config import PipelineConfig
 
-logger = structlog.get_logger()
-
 import os
 import re
 from pipeline.tracker import VisitorGallery
@@ -26,6 +24,8 @@ from pipeline.emit import EventEmitter
 from pipeline.direction import DirectionDetector
 from pipeline.dedup import CrossCameraDeduplicator
 from pipeline.types import TrackedVisitor
+
+logger = structlog.get_logger()
 
 
 # Entry/exit direction detection via a virtual crossing line
@@ -122,6 +122,12 @@ class Detector:
         logger.info("clip_start", video=str(video_path),
                     camera_id=camera_id, fps=fps)
 
+        CAMERA_CONF_OVERRIDES = {
+            "CAM_ENTRY_01": 0.32,
+            "CAM_BILLING_01": 0.22,
+        }
+        clip_conf = CAMERA_CONF_OVERRIDES.get(camera_id, self.config.detection_conf)
+
         try:
             # Run YOLO tracking — persist=True keeps IDs across frames
             for result in self.model.track(
@@ -130,7 +136,7 @@ class Detector:
                 persist=True,           # Consistent track IDs
                 tracker=self.config.tracker_type,
                 classes=[self.config.person_class_id],
-                conf=self.config.detection_conf,
+                conf=clip_conf,
                 iou=self.config.detection_iou,
                 imgsz=self.config.imgsz,
                 verbose=False,
@@ -196,9 +202,9 @@ class Detector:
                     # Keep only last 10 positions
                     direction_history[track_id] = direction_history[track_id][-10:]
 
-                    # Extract frame crop every 15 frames for staff detection
+                    # Extract frame crop for Re-ID and staff detection
                     frame_crop = None
-                    if frame_idx % 15 == 0 and result.orig_img is not None:
+                    if result.orig_img is not None:
                         x1c, y1c, x2c, y2c = map(int, bbox)
                         x1c, y1c = max(0, x1c), max(0, y1c)
                         x2c = min(result.orig_shape[1], x2c)
@@ -342,8 +348,6 @@ def run_pipeline(
             direction_det = (DirectionDetector(zone_mapper.get_threshold_y())
                              if is_entry_cam else None)
 
-            prev_positions: dict[int, float] = {}
-
             for detection in detector.process_clip(
                 clip_path, store_id, camera_id, clip_start
             ):
@@ -374,7 +378,6 @@ def run_pipeline(
 
                 # Zone mapping
                 if zone_mapper and not zone_mapper.is_entry_camera():
-                    frame_placeholder = None  # Real frame not available in stream mode
                     # Zone mapper needs frame shape — use clip resolution from config
                     tracked.zone_id = zone_mapper.get_zone(
                         detection.bbox,
@@ -398,9 +401,7 @@ def run_pipeline(
                 if frame_crop is not None:
                     tracked.is_staff = staff_det.is_staff(frame_crop, (0, 0, frame_crop.shape[1], frame_crop.shape[0]))
 
-                # Do not emit events for staff members to avoid inflating customer metrics
-                if tracked.is_staff:
-                    continue
+                # Staff members will have is_staff=True, API queries handle the filtering
 
                 # Emit event
                 emitter.emit(tracked, store_id, (1080, 1920))
@@ -450,7 +451,7 @@ def _extract_clip_start_time(clip_path: Path):
     Derive clip start datetime from filename (if ISO-8601 encoded)
     or fall back to file modification time.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
     name = clip_path.stem
     # Try to parse ISO-style datetime from filename e.g. 2026-03-03T14-00-00
     iso_pattern = r"(\d{4}-\d{2}-\d{2}[T_]\d{2}[-:]\d{2}[-:]\d{2})"
