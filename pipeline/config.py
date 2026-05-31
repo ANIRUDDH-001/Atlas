@@ -35,12 +35,12 @@ class PipelineConfig:
     reid_gallery_window_sec: int = 1800  # 30-min re-entry window
 
     # Staff detection
-    staff_hue_lower: int = 130
-    staff_hue_upper: int = 160
-    staff_saturation_lower: int = 50
-    staff_black_value_upper: int = 150
-    staff_black_sat_upper: int = 100
-    staff_color_ratio_threshold: float = 0.35
+    staff_hue_lower: int = 125       # broadened from 130 — fluorescent shifts purple hue
+    staff_hue_upper: int = 170       # broadened from 160 — captures desaturated tones
+    staff_saturation_lower: int = 30 # lowered from 50 — fluorescent desaturates strongly
+    staff_black_value_upper: int = 0
+    staff_black_sat_upper: int = 80
+    staff_color_ratio_threshold: float = 0.20  # lowered from 0.35 — CCTV crops are 30-60px wide
 
     # Zone dwell
     dwell_emit_interval_sec: int = 30

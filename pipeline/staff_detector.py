@@ -102,6 +102,10 @@ class StaffDetector:
         if x2 <= x1 or y2 <= y1:
             return None
 
+        # Minimum crop size guard (applied to full body)
+        if (y2 - y1) < 20 or (x2 - x1) < 10:
+            return None
+
         # Upper 40% of the bounding box
         body_height = y2 - y1
         upper_y2 = y1 + int(body_height * 0.40)
@@ -111,8 +115,8 @@ class StaffDetector:
 
         crop = frame[y1:upper_y2, x1:x2]
 
-        # Minimum crop size guard
-        if crop.shape[0] < 8 or crop.shape[1] < 4:
+        # Upper body size guard
+        if crop.shape[0] == 0 or crop.shape[1] == 0:
             return None
 
         return crop
