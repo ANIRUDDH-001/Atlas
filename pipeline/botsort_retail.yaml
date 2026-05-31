@@ -22,11 +22,10 @@ track_low_thresh: 0.10
 # Rationale: Consistent with track_high_thresh reduction.
 new_track_thresh: 0.40
 
-# CHANGED: 30 → 45
-# Rationale: At 15fps, 30 frames = 2 seconds. Retail customers
-# frequently pause behind displays for 3–5 seconds (partial occlusion).
-# 45 frames = 3 seconds buffer prevents premature track termination.
-track_buffer: 45
+# CHANGED: 30 -> 45 -> 90
+# Rationale: At 30fps, 90 frames = 3 seconds buffer prevents premature track termination.
+track_buffer: 90   # 3 seconds at 30fps (cameras are 29.97fps per camera_map.json)
+                   # was 45 = 1.5s at 30fps — tracks lost during shelf-browse occlusion
 
 # KEPT: 0.8
 # Standard IoU matching threshold. Works well for retail densities.
@@ -57,7 +56,8 @@ with_reid: True
 # reduces false matches between people in similar clothing.
 proximity_thresh: 0.6
 
-# CHANGED: 0.25 → 0.30
+# CHANGED: 0.25 -> 0.30 -> 0.45
 # Rationale: Consistent with proximity_thresh increase. Higher
 # appearance threshold filters out low-quality embedding matches.
-appearance_thresh: 0.30
+appearance_thresh: 0.45  # higher threshold reduces ID switches when two people
+                         # pass each other with similar clothing

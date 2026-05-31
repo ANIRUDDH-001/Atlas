@@ -1,12 +1,12 @@
 """Pipeline-specific configuration."""
 import os
-from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 @dataclass
 class PipelineConfig:
-    # Video processing
-    target_fps: int = 15          # Native clip fps (from spec)
+    target_fps: int = 30  # cameras are 29.97fps (CAMs 1-3) and 24.98fps (CAMs 4-5)
+                          # per pipeline/camera_map.json; 30 used as fallback when
+                          # OpenCV cannot read fps from container metadata
     process_every_n_frames: int = 1  # Process every frame (set >1 to skip)
     imgsz: int = 640              # YOLO inference size
 
@@ -31,15 +31,15 @@ class PipelineConfig:
 
     # Re-ID
     reid_model: str = "osnet_x0_25_msmt17.pt"
-    reid_similarity_threshold: float = 0.72
+    reid_similarity_threshold: float = 0.68
     reid_gallery_window_sec: int = 1800  # 30-min re-entry window
 
     # Staff detection
     staff_hue_lower: int = 130
     staff_hue_upper: int = 160
     staff_saturation_lower: int = 50
-    staff_black_value_upper: int = 60
-    staff_black_sat_upper: int = 80
+    staff_black_value_upper: int = 150
+    staff_black_sat_upper: int = 100
     staff_color_ratio_threshold: float = 0.35
 
     # Zone dwell
@@ -56,7 +56,7 @@ def get_pipeline_config() -> PipelineConfig:
     return PipelineConfig(
         detection_conf=float(os.getenv("PIPELINE_CONF", "0.45")),
         reid_similarity_threshold=float(
-            os.getenv("REENTRY_SIMILARITY_THRESHOLD", "0.72")
+            os.getenv("REENTRY_SIMILARITY_THRESHOLD", "0.68")
         ),
         reid_gallery_window_sec=int(
             os.getenv("REENTRY_WINDOW_SECONDS", "1800")
