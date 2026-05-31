@@ -9,6 +9,8 @@ class PipelineConfig:
                           # OpenCV cannot read fps from container metadata
     process_every_n_frames: int = 1  # Process every frame (set >1 to skip)
     imgsz: int = 640              # YOLO inference size
+    default_frame_height: int = 1080  # fallback when OpenCV can't read from container
+    default_frame_width: int = 1920
 
     # Detection
     detection_conf: float = 0.45  # YOLO confidence threshold

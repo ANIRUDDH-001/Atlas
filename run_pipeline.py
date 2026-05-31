@@ -1,4 +1,3 @@
-import sys
 import structlog
 from pathlib import Path
 from pipeline.config import get_pipeline_config
@@ -21,7 +20,7 @@ if __name__ == "__main__":
         os.remove(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"Starting pipeline...")
+    print("Starting pipeline...")
     print(f"Video dir: {video_dir}")
     print(f"Layout: {layout_path}")
     print(f"Output: {output_path}")

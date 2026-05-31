@@ -315,8 +315,16 @@ def run_pipeline(
 
             is_entry_cam = (zone_mapper is not None and
                             zone_mapper.is_entry_camera())
-            direction_det = (DirectionDetector(zone_mapper.get_threshold_y())
+            direction_det = (DirectionDetector(zone_mapper.get_threshold_y())  # type: ignore
                              if is_entry_cam else None)
+
+            cap = cv2.VideoCapture(str(clip_path))
+            frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            cap.release()
+            if frame_w == 0 or frame_h == 0:
+                frame_h, frame_w = config.default_frame_height, config.default_frame_width
+            frame_shape = (frame_h, frame_w)
 
             for detection in detector.process_clip(
                 clip_path, store_id, camera_id, clip_start
@@ -325,7 +333,7 @@ def run_pipeline(
                 frame_crop = detection.frame_crop
 
                 # Resolve identity via gallery
-                tracked = gallery.resolve(detection, frame_crop)
+                tracked = gallery.resolve(detection, frame_crop)  # type: ignore
 
                 # Cross-camera deduplication
                 canonical_id = dedup.resolve(
@@ -351,12 +359,12 @@ def run_pipeline(
                     # Zone mapper needs frame shape — use clip resolution from config
                     tracked.zone_id = zone_mapper.get_zone(
                         detection.bbox,
-                        (1080, 1920),  # Per spec: 1080p clips
+                        frame_shape,
                     )
 
                 # Direction detection for entry cameras
                 if direction_det is not None:
-                    foot_y = detection.bbox[3] / 1080.0
+                    foot_y = detection.bbox[3] / float(frame_shape[0])
                     direction = direction_det.update(
                         detection.track_id, foot_y, detection.frame_idx
                     )
@@ -369,13 +377,13 @@ def run_pipeline(
 
                 # Staff classification (sampled every 15 frames via frame_crop)
                 if frame_crop is not None:
-                    h, w = frame_crop.shape[:2]
-                    tracked.is_staff = staff_det.is_staff(frame_crop, (0, 0, w, h))
+                    h, w = frame_crop.shape[:2]  # type: ignore
+                    tracked.is_staff = staff_det.is_staff(frame_crop, (0, 0, w, h))  # type: ignore
 
                 # Staff members will have is_staff=True, queries handle filtering
 
                 # Emit event
-                emitter.emit(tracked, store_id, (1080, 1920))
+                emitter.emit(tracked, store_id, frame_shape)
                 total_events += 1
 
             # Periodic eviction
