@@ -28,10 +28,7 @@ from pipeline.types import TrackedVisitor
 logger = structlog.get_logger()
 
 
-# Entry/exit direction detection via a virtual crossing line
-# Persons crossing from top-to-bottom = ENTRY; bottom-to-top = EXIT
-# The threshold_y is normalised (0.0–1.0) relative to frame height
-DIRECTION_HISTORY: dict[int, list[float]] = {}  # track_id → [cy_history]
+
 
 
 def _point_in_polygon(px: float, py: float, polygon: list[list[float]]) -> bool:
@@ -165,7 +162,8 @@ class Detector:
                         continue
 
                     # Fix 2: Minimum track lifespan filter
-                    track_frame_counts[track_id] = track_frame_counts.get(track_id, 0) + 1
+                    count = track_frame_counts.get(track_id, 0) + 1
+                    track_frame_counts[track_id] = count
                     if track_frame_counts[track_id] < self.config.min_track_frames:
                         continue
 
@@ -177,8 +175,9 @@ class Detector:
                     if track_id not in track_centroids:
                         track_centroids[track_id] = []
                     track_centroids[track_id].append((cx, cy))
-                    track_centroids[track_id] = track_centroids[track_id][-self.config.static_suppress_frames:]
-                    if len(track_centroids[track_id]) >= self.config.static_suppress_frames:
+                    max_frames = self.config.static_suppress_frames
+                    track_centroids[track_id] = track_centroids[track_id][-max_frames:]
+                    if len(track_centroids[track_id]) >= max_frames:
                         first = track_centroids[track_id][0]
                         max_disp = max(
                             math.dist(p, first) for p in track_centroids[track_id]
@@ -233,36 +232,7 @@ class Detector:
                         frames_processed=frame_idx,
                         detections_yielded=processed)
 
-    def get_direction(
-        self,
-        track_id: int,
-        threshold_y: float = 0.5,
-    ) -> str | None:
-        """
-        Determine if a track is crossing the entry threshold.
 
-        Args:
-            track_id: The BoT-SORT track identifier
-            threshold_y: Normalised Y coordinate of the entry line (0.0–1.0)
-
-        Returns:
-            "ENTRY" if crossing inbound (top → bottom)
-            "EXIT" if crossing outbound (bottom → top)
-            None if no crossing detected
-        """
-        history = DIRECTION_HISTORY.get(track_id, [])
-        if len(history) < 3:
-            return None
-
-        recent = history[-3:]
-        prev_above = recent[0] < threshold_y
-        curr_below = recent[-1] >= threshold_y
-
-        if prev_above and curr_below:
-            return "ENTRY"
-        if not prev_above and not curr_below:
-            return "EXIT"
-        return None
 
     def get_frame_embedding_crop(
         self,
@@ -399,9 +369,10 @@ def run_pipeline(
 
                 # Staff classification (sampled every 15 frames via frame_crop)
                 if frame_crop is not None:
-                    tracked.is_staff = staff_det.is_staff(frame_crop, (0, 0, frame_crop.shape[1], frame_crop.shape[0]))
+                    h, w = frame_crop.shape[:2]
+                    tracked.is_staff = staff_det.is_staff(frame_crop, (0, 0, w, h))
 
-                # Staff members will have is_staff=True, API queries handle the filtering
+                # Staff members will have is_staff=True, queries handle filtering
 
                 # Emit event
                 emitter.emit(tracked, store_id, (1080, 1920))
