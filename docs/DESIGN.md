@@ -184,6 +184,28 @@ where customers typically abandon after 15 minutes. AI suggested thresholds
 calibrated for high-throughput environments (grocery, fast food) are too sensitive
 for specialty retail at this transaction frequency.
 
+### Re-ID Sampling Strategy (Phase 1)
+Consulted Claude on CPU-efficient Re-ID sampling. Suggested memoization.
+**Overridden:** memoization doesn't help when the first frame of a new
+track_id never gets an embedding. Correct fix is always-extract.
+Validated by instrumenting `_find_best_match()` call count vs embedding
+extraction count — confirmed 93% embedding miss rate before fix.
+
+### FPS Detection (Phase 1)
+Spec stated "15fps clips". Claude agreed. Actual camera metadata (via
+`pipeline/camera_map.json`) showed 29.97fps. This is a case where reading
+the data is more reliable than reading the spec.
+**Lesson:** Always verify config constants against the actual data source.
+
+### Staff Classifier Architecture (Phase 2)
+Consulted Claude and GPT-4 on staff detection approach. Both recommended
+a fine-tuned ResNet binary classifier. **Overridden:** no labelled staff/
+customer training data available. Chose HSV classification because:
+1. Interpretable — calibratable by visual inspection without training data
+2. Fast — negligible CPU overhead vs ResNet inference
+3. Sufficient — uniform colour is a reliable discriminator for this store
+Limitation documented: degrades if staff wear non-uniform colours.
+
 ---
 
 ## Data Flow: Frame to Conversion Rate

@@ -205,3 +205,176 @@ The default purple hue range (130-160) was found to be inadequate for the Brigad
 
 ### Re-ID Gallery Threshold
 Testing showed a 0.0% re-entry rate with `reid_similarity_threshold: 0.72`. We reduced this to `0.68` as the face-blurring in the dataset causes a drop in Re-ID cosine similarity for legitimate re-entries.
+---
+
+## Decision 4: Re-ID Embedding Extraction Frequency
+
+**Date:** 2026-06-01
+**Files changed:** `pipeline/detect.py`
+
+### What we changed
+Removed the `frame_idx % 15 == 0` condition from frame crop extraction.
+Previously, OSNet embeddings were only computed every 15th frame — meaning
+93% of detections had `frame_crop=None` and received no embedding.
+
+### Why it was wrong
+With `embedding=None`, `VisitorGallery._find_best_match()` returned
+`(None, 0.0)` immediately without comparing against the gallery. Every
+BoT-SORT `track_id` reassignment after an occlusion event registered as a
+new ENTRY with a new `visitor_id`. Observed result: 500+ unique_visitors
+for 20–30 actual people.
+
+### AI interaction
+Asked Claude to suggest a CPU-efficient caching strategy to reduce
+Re-ID calls. It proposed memoizing embeddings by `(track_id, frame_window)`.
+**Rejected:** the problem is not redundant computation but missing computation.
+The first frame of any new `track_id` needs an embedding immediately.
+Caching only helps after the first extraction — it does not solve the
+case where the first extraction never happens.
+
+### Trade-off accepted
+OSNet on CPU adds ~3ms per person crop. At 30fps with 5 people in frame,
+this is ~15ms per frame added to the pipeline. Acceptable given that
+YOLO inference itself takes ~20ms per frame.
+
+### Outcome
+After fix: unique_visitors = 26.
+
+---
+
+## Decision 5: BoT-SORT Track Buffer Calibration
+
+**Date:** 2026-06-01
+**Files changed:** `pipeline/botsort_retail.yaml`, `pipeline/config.py`
+
+### What we changed
+`track_buffer`: 45 → 90
+`target_fps`: 15 → 30
+`appearance_thresh`: 0.25 → 0.45
+
+### Why it was wrong
+`track_buffer=45` was documented as "3 seconds at 15fps". The actual cameras
+operate at 29.97fps (per `pipeline/camera_map.json`). At 30fps, 45 frames
+= 1.5 seconds — too short for a customer browsing behind a shelf, which
+takes 2–4 seconds.
+
+When a track is dropped prematurely, the next detection assigns a new
+`track_id`. Combined with the embedding extraction bug (now fixed), this
+amplified the visitor inflation.
+
+### Alternative considered
+Downsampling to 15fps via `process_every_n_frames=2`. Rejected: at 15fps
+effective, a person crosses the entry threshold line in ~1–2 frames, below
+`CROSSING_MIN_FRAMES=3` in `DirectionDetector`. This would cause missed
+ENTRY events at the entry camera.
+
+### Outcome
+With `track_buffer=90` (3 seconds at 30fps), track loss during shelf-browse
+occlusion is significantly reduced. Fewer spurious track_id reassignments.
+
+---
+
+## Decision 6: Staff Detector HSV Range
+
+**Date:** 2026-06-01
+**Files changed:** `pipeline/config.py`, `pipeline/staff_detector.py`
+
+### What we changed
+`staff_hue_lower`: 130 → 125
+`staff_hue_upper`: 160 → 170
+`staff_saturation_lower`: 50 → 30
+`staff_color_ratio_threshold`: 0.35 → 0.20
+
+### Why it was wrong
+The previous HSV range was calibrated for daylight conditions. Brigade Road
+Purplle store uses fluorescent retail lighting, which:
+1. Shifts apparent purple hue from ~140 to ~150–170 in OpenCV HSV space
+2. Desaturates colours — saturation drops from ~150 to ~30–80
+3. Increases brightness — value increases toward 200+
+
+A saturation floor of 50 excluded most fluorescent-lit purple pixels.
+A ratio threshold of 0.35 required 35% matching pixels in a 30–60px
+CCTV crop — physically unreachable at typical store camera distances.
+
+### Evidence base
+Analyzed annotated frames from CAM_BILLING_01, cross-referencing POS ground truth to confirm 5 salespersons on floor. Extracted bounding box crops of known staff to measure HSV histograms under the specific store lighting, mapping the fluorescent shift from baseline purple (130-160) to the observed wider hue (125-170) and lower saturation. Used script synthetic analysis (docs/STAFF_DETECTION_DECISION.md) to validate thresholds.
+
+### Alternative considered
+Fine-tuned binary classifier (customer vs staff). Rejected: no labelled
+training data available within the hackathon timeline. HSV classification
+is interpretable, fast, and directly calibratable from visual inspection.
+
+### Outcome
+Staff events after fix: 3 (3.4% of total events).
+Expected range: 15–25% for 5 salespersons out of ~25 total people.
+
+---
+
+## Decision 7: Cross-Camera Deduplication Window
+
+**Date:** 2026-06-01
+**Files changed:** `pipeline/dedup.py`, `pipeline/config.py`
+
+### What we changed
+`cross_camera_dedup_window_sec`: 60 → 120
+`cross_camera_similarity_threshold`: 0.72 → 0.68
+
+### Why it was wrong
+Brigade Road store floor plan is approximately 500 sq ft. A customer
+entering at CAM_ENTRY_01 and reaching the billing counter at CAM_BILLING_01
+takes 60–120 seconds at realistic browsing pace. The 60s window missed
+slow browsers, causing them to be counted twice.
+
+### Trade-off
+Larger dedup window increases false-merge risk: two different customers
+with similar appearance in a 2-minute window could be merged. At the
+Brigade Road density (~20–30 customers simultaneously), this risk is low.
+
+### Cross-camera vs in-camera threshold
+In-camera re-entry uses 0.72 cosine similarity (same viewing angle,
+consistent lighting). Cross-camera matching involves angle changes,
+lighting variation, and distance differences that degrade OSNet embeddings
+by ~0.05–0.10 cosine units. Threshold lowered to 0.68 accordingly.
+
+---
+
+## Decision 8: Queue Depth Date Scoping
+
+**Date:** 2026-06-01
+**Files changed:** `app/metrics.py`
+
+### What we changed
+Added `AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE`
+to the `current_queue_depth` query.
+
+### Why it was wrong
+Without a date filter, the last `queue_depth` value from any historical
+event persisted indefinitely. A queue spike of 12 from the previous day
+would show as the current queue depth at store open the next morning.
+
+### Timezone note
+The store is in Bangalore (IST = UTC+5:30). Events are stored as TIMESTAMPTZ
+(UTC). The date filter uses `AT TIME ZONE 'Asia/Kolkata'` to correctly
+compute the local store date for the filter.
+
+---
+
+## Decision 9: Frame Shape in Zone Mapper
+
+**Date:** 2026-06-01
+**Files changed:** `pipeline/detect.py`
+
+### What we changed
+Replaced hardcoded `(1080, 1920)` frame shape with actual dimensions read
+from `cv2.VideoCapture` at clip start.
+
+### Why it matters
+ZoneMapper normalises bounding box coordinates by frame shape. If a camera
+delivers 720p or 1280×960, zone attribution is systematically wrong for
+that camera. Reading from VideoCapture costs one call at clip init.
+
+### Fallback
+Config values `default_frame_height=1080`, `default_frame_width=1920` are
+used when OpenCV cannot read dimensions from the container (rare, but
+happens with malformed MP4 headers).
+
