@@ -1,202 +1,156 @@
-# Store Intelligence System
-## Purplle Tech Challenge 2026 — Round 2
+# Atlas — Store Intelligence System
 
-AI-powered retail analytics from raw CCTV footage. Processes video clips through
-a computer vision pipeline to produce real-time store metrics, conversion funnels,
-zone heatmaps, and operational anomaly detection.
+Purplle Tech Challenge 2026 — Round 2
+Store: Brigade Road, Bangalore (ST1008)
 
----
+## Architecture
 
-## Quick Start (5 Commands)
-
-```bash
-# 1. Clone and enter
-git clone <your-repo-url> store-intelligence && cd store-intelligence
-
-# 2. Prepare data directory structure
-mkdir -p data/videos/STORE_ST1008
-
-# 3. Copy your dataset files into place
-#    - Place CAM 1.mp4 through CAM 5.mp4 into data/videos/STORE_ST1008/
-#    - Place Brigade_Bangalore_10_April_26.csv into data/
-#    - Place store_layout.json into data/  (generated — see below)
-
-# 4. Preprocess the POS data and generate store_layout.json
-python3 scripts/setup_data.py
-
-# 5. Start all services
-docker compose up --build
+```
+CCTV Cameras (5×)
+    │
+    ▼
+pipeline/detect.py        YOLO11n + BoT-SORT (track_buffer=90@30fps)
+pipeline/tracker.py       OSNet ReID gallery (30-min re-entry window)
+pipeline/staff_detector.py  HSV colour classification
+pipeline/zone_mapper.py   Polygon zone attribution
+    │
+    ▼ events.jsonl
+    │
+    ▼
+POST /events/ingest       FastAPI + PostgreSQL (idempotent, batched)
+    │
+    ├── GET /stores/{id}/metrics    unique_visitors, conversion_rate, queue_depth
+    ├── GET /stores/{id}/funnel     entry → zone → billing → purchase
+    ├── GET /stores/{id}/heatmap    dwell time by zone
+    └── GET /stores/{id}/anomalies  queue spike, conversion drop, dead zone
+    │
+    ▼
+dashboard/index.html      React SSE live dashboard (no build step)
 ```
 
-The system is ready when `http://localhost:8000/health` returns `{"status":"OK"}`.
+## Quick Start
 
----
+**Prerequisites:** Docker Desktop with Compose V2, Python 3.11+
 
-## Accessing the System
+```bash
+# 1. Start all services (API, PostgreSQL, Redis, dashboard)
+docker compose up -d
 
-| Service | URL | Description |
+# 2. Verify health
+curl http://localhost:8000/health
+
+# 3. Run the detection pipeline
+python3 run_pipeline.py --store-id STORE_ST1008
+
+# 4. Ingest events into API
+python3 scripts/ingest_events.py --file data/events.jsonl
+
+# 5. View live metrics
+curl http://localhost:8000/stores/STORE_ST1008/metrics | python3 -m json.tool
+
+# 6. Open dashboard
+open http://localhost:3000
+```
+
+## One-Command CI
+
+```bash
+make ci
+```
+
+Runs: lint → type check → pytest → docker smoke test
+
+## Run Tests
+
+```bash
+make test
+# or directly:
+python3 -m pytest tests/ -v
+```
+
+## Pipeline Configuration
+
+Key settings in `pipeline/config.py`:
+
+| Parameter | Value | Rationale |
 |---|---|---|
-| **Live Dashboard** | http://localhost:3000 | Real-time store metrics |
-| **API Docs** | http://localhost:8000/docs | Swagger UI for all endpoints |
-| **Health Check** | http://localhost:8000/health | Service status |
-| **Metrics** | http://localhost:8000/stores/STORE_ST1008/metrics | Live store analytics |
-| **Funnel** | http://localhost:8000/stores/STORE_ST1008/funnel | Conversion funnel |
-| **Anomalies** | http://localhost:8000/stores/STORE_ST1008/anomalies | Active alerts |
+| `target_fps` | 30 | Camera actual fps (29.97 per camera_map.json) |
+| `reid_similarity_threshold` | 0.72 | Cosine similarity for re-entry matching |
+| `reid_gallery_window_sec` | 1800 | 30-minute re-entry detection window |
+| `staff_hue_lower/upper` | 125/170 | Calibrated for fluorescent retail lighting |
+| `staff_color_ratio_threshold` | 0.20 | Lowered for 30–60px CCTV crop distances |
 
----
+BoT-SORT settings in `pipeline/botsort_retail.yaml`:
 
-## Running the Detection Pipeline
-
-The pipeline processes all 5 CCTV clips and outputs `data/events.jsonl`.
-
-```bash
-# Run pipeline (processes all cameras for STORE_ST1008)
-bash pipeline/run.sh
-
-# Expected output: events.jsonl with structured events
-# Ingest output into the running API
-python3 scripts/ingest_events.py
-```
-
-Pipeline progress is logged to stdout. Expected runtime: ~5–10 minutes on CPU.
-
-### Camera Mapping
-The 5 provided cameras are mapped to logical roles:
-
-| File | Logical Camera ID | Role |
+| Parameter | Value | Rationale |
 |---|---|---|
-| CAM 1.mp4 | CAM_ENTRY_01 | Entry/Exit threshold |
-| CAM 2.mp4 | CAM_FLOOR_01 | Skincare zone |
-| CAM 3.mp4 | CAM_FLOOR_02 | Makeup + Fragrance zone |
-| CAM 4.mp4 | CAM_FLOOR_03 | Haircare + Wellness zone |
-| CAM 5.mp4 | CAM_BILLING_01 | Cash counter / Billing |
+| `track_buffer` | 90 | 3 seconds at 30fps — survives shelf-browse occlusion |
+| `appearance_thresh` | 0.45 | Reduces ID switches between similar-looking people |
 
----
+## API Reference
 
-## Data Setup Details
+All endpoints at `http://localhost:8000`.
 
-### POS Data Preprocessing
-The raw POS CSV (39 columns, 101 line items) is preprocessed to the 4-column
-format required by the API. The script `scripts/setup_data.py` handles this:
+### POST /events/ingest
+Batch ingest detection events. Idempotent (same `event_id` can be sent twice).
+Returns partial success: `{"accepted": N, "rejected": M, "errors": [...]}`.
 
-```bash
-python3 scripts/setup_data.py
-# Creates: data/pos_transactions.csv (4-column, 24 invoice rows)
-# Creates: data/store_layout.json    (STORE_ST1008 zone definitions)
+### GET /stores/{store_id}/metrics
+Real-time store metrics. Redis-cached with 30s TTL.
+
+```json
+{
+  "store_id": "STORE_ST1008",
+  "unique_visitors": 86,
+  "conversion_rate": 0.0,
+  "avg_dwell_by_zone": [
+    {"zone_id": "BILLING_QUEUE", "avg_dwell_sec": 71.2},
+    {"zone_id": "WALKWAY", "avg_dwell_sec": 57.8},
+    {"zone_id": "SKINCARE", "avg_dwell_sec": 46.9},
+    {"zone_id": "BILLING", "avg_dwell_sec": 35.7},
+    {"zone_id": "MAKEUP", "avg_dwell_sec": 33.7}
+  ],
+  "current_queue_depth": 6,
+  "abandonment_rate": 0.1163,
+  "data_confidence": "HIGH",
+  "as_of": "2026-06-01T12:54:20Z"
+}
 ```
 
-### Data Directory Structure
-```
-data/
-├── videos/
-│   └── STORE_ST1008/
-│       ├── CAM 1.mp4    → CAM_ENTRY_01
-│       ├── CAM 2.mp4    → CAM_FLOOR_01
-│       ├── CAM 3.mp4    → CAM_FLOOR_02
-│       ├── CAM 4.mp4    → CAM_FLOOR_03
-│       └── CAM 5.mp4    → CAM_BILLING_01
-├── pos_transactions_raw.csv    (original 39-column CSV)
-├── pos_transactions.csv        (generated 4-column format)
-├── store_layout.json           (generated from blueprint)
-└── events.jsonl                (generated by pipeline)
-```
+### GET /stores/{store_id}/funnel
+Visitor journey from entry to purchase.
 
----
+### GET /stores/{store_id}/heatmap
+Dwell time aggregated by zone.
 
-## Architecture Overview
+### GET /stores/{store_id}/anomalies
+Real-time anomaly detection:
+- `BILLING_QUEUE_SPIKE` — queue > 5 (WARN) or > 8 (CRITICAL)
+- `CONVERSION_DROP` — today's rate < 70% of 7-day average
+- `DEAD_ZONE` — no zone visits in 30 minutes
+- `STALE_FEED` — no events for 10 minutes
+
+## Design Decisions
+
+See `docs/CHOICES.md` for full decision log with AI interaction notes.
+See `docs/DESIGN.md` for architecture and AI-assisted decisions section.
+
+## Project Structure
 
 ```
-[CCTV Clips] → [YOLO11n + BoT-SORT + OSNet] → [events.jsonl]
-                                                      ↓
-                                          [POST /events/ingest]
-                                                      ↓
-                                        [PostgreSQL + Redis Cache]
-                                                      ↓
-                          [/metrics] [/funnel] [/heatmap] [/anomalies]
-                                                      ↓
-                                    [SSE Stream → React Dashboard]
+pipeline/       Detection pipeline (YOLO + tracking + Re-ID)
+app/            FastAPI analytics API
+dashboard/      React SSE live dashboard
+tests/          pytest suite
+docs/           CHOICES.md, DESIGN.md, audit reports
+migrations/     PostgreSQL schema
+scripts/        Utility scripts (ingest, smoke test)
 ```
 
-See `docs/DESIGN.md` for complete architecture documentation.
+## Ground Truth Validation
 
----
-
-## Running Tests
-
-```bash
-pip install -e ".[test]"
-pytest tests/ --cov=app --cov-report=term-missing -v
-```
-
-Coverage target: ≥70% statement coverage.
-
----
-
-## Environment Variables
-
-All configuration via `.env` file (copy from `.env.example`):
-
-```bash
-cp .env.example .env
-# Edit .env if needed — defaults work for docker compose
-```
-
-Key variables:
-
-| Variable | Default | Description |
-|---|---|---|
-| `DATABASE_URL` | postgresql+asyncpg://apex:apex@db/store_intel | PostgreSQL connection |
-| `REDIS_URL` | redis://redis:6379 | Redis connection |
-| `REENTRY_SIMILARITY_THRESHOLD` | 0.72 | Re-ID cosine similarity cutoff |
-| `QUEUE_WARN_THRESHOLD` | 5 | Queue depth WARN trigger |
-| `QUEUE_CRITICAL_THRESHOLD` | 8 | Queue depth CRITICAL trigger |
-
----
-
-## Live Dashboard
-
-The dashboard connects to the API via **Server-Sent Events** and updates
-visitor count in real time as events are ingested.
-
-Access at: **http://localhost:3000**
-
-Panels:
-- **Live Metrics** — visitor count, conversion rate, queue depth (SSE live)
-- **Visitor Trend** — real-time line chart (last 30 data points)
-- **Conversion Funnel** — 4-stage drop-off analysis
-- **Zone Heatmap** — colour-coded zone activity grid
-- **Anomaly Alerts** — severity-coded operational alerts
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Detection | YOLO11n (ultralytics) |
-| Tracking | BoT-SORT with ReID enabled |
-| Re-ID | OSNet x0.25 (MSMT17 pretrained) |
-| API | FastAPI 0.111+ + asyncpg |
-| Database | PostgreSQL 16 |
-| Cache | Redis 7 |
-| Dashboard | React 18 + Recharts (CDN, no build step) |
-| Containers | Docker Compose v2 |
-| Logging | structlog (JSON structured) |
-
----
-
-## Documents
-
-- `docs/DESIGN.md` — System architecture and AI-assisted decisions
-- `docs/CHOICES.md` — Three key engineering decisions with full trade-off reasoning
-
----
-
-## Notes on the Dataset
-
-The provided dataset differs from the challenge spec in ways handled transparently:
-- **5 cameras, ~2.5 min each** (spec stated 3 cameras × 20 min): same pipeline,
-  shorter clips, all 5 processed
-- **Store ID `ST1008`**: used throughout as `STORE_ST1008` in our system
-- **FPS varies**: 29.97fps (CAM 1–3) and 24.98fps (CAM 4–5) — detected dynamically
-- **POS is 39-column line items**: preprocessed to 4-column invoice aggregates
+Brigade Road store (10-Apr-2026):
+- POS transactions: 24 invoices
+- Unique buying customers: 21
+- Salespersons: 5 (excluded from metrics via staff detection)
+- Pipeline output: 86 unique_visitors — see `docs/PIPELINE_RUN_RESULTS.md`
