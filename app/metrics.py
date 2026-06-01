@@ -1,6 +1,6 @@
 import json
 import structlog
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -26,6 +26,7 @@ settings = get_settings()
 async def get_metrics(
     store_id: str,
     request: Request,
+    target_date: date | None = None,
     db: AsyncSession = Depends(get_db),
     cache=Depends(get_redis),
 ) -> MetricsResponse:
@@ -33,7 +34,7 @@ async def get_metrics(
     trace_id = getattr(request.state, "trace_id", "unknown")
 
     # L1 cache check
-    cache_key = f"metrics:{store_id}"
+    cache_key = f"metrics:{store_id}:{target_date or 'today'}"
     try:
         cached = await cache.get(cache_key)
         if cached:
@@ -46,7 +47,7 @@ async def get_metrics(
     except Exception as exc:
         logger.warning("metrics_cache_read_failed", store_id=store_id, error=type(exc).__name__)
 
-    result = await compute_metrics(store_id, db)
+    result = await compute_metrics(store_id, target_date, db)
 
     # Store in cache
     try:
@@ -66,6 +67,7 @@ async def get_metrics(
 
 async def compute_metrics(
     store_id: str,
+    target_date: date | None = None,
     db: AsyncSession | None = None,
 ) -> MetricsResponse:
     """
@@ -79,7 +81,7 @@ async def compute_metrics(
 
         # 1. Unique customer visitors today (ENTRY events, not staff)
         from app.session import count_unique_sessions
-        unique_visitors = await count_unique_sessions(session, store_id)
+        unique_visitors = await count_unique_sessions(session, store_id, target_date)
 
         # 2. Conversion rate via 5-minute POS window join
         conversions_row = await session.execute(text("""
@@ -93,9 +95,10 @@ async def compute_metrics(
             WHERE e.store_id = :store_id
               AND e.zone_id IN ('BILLING', 'CHECKOUT', 'CASH_COUNTER')
               AND e.is_staff = FALSE
-              AND DATE(e.timestamp AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE
+              AND DATE(e.timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), CURRENT_DATE)
         """), {"store_id": store_id,
-               "window": POS_CORRELATION_WINDOW_SECONDS})
+               "window": POS_CORRELATION_WINDOW_SECONDS,
+               "target_date": target_date})
         converted = conversions_row.scalar() or 0
         conversion_rate = (
             round(converted / unique_visitors, 4) if unique_visitors > 0
@@ -109,10 +112,10 @@ async def compute_metrics(
             WHERE store_id = :store_id
               AND event_type = 'ZONE_DWELL'
               AND is_staff = FALSE
-              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE
+              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), CURRENT_DATE)
             GROUP BY zone_id
             ORDER BY avg_dwell_sec DESC
-        """), {"store_id": store_id})
+        """), {"store_id": store_id, "target_date": target_date})
         dwell_by_zone = [
             ZoneDwell(zone_id=row.zone_id,
                       avg_dwell_sec=round(float(row.avg_dwell_sec), 1))
@@ -126,10 +129,10 @@ async def compute_metrics(
               AND event_type = 'BILLING_QUEUE_JOIN'
               AND is_staff = FALSE
               AND queue_depth IS NOT NULL
-              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE
+              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), CURRENT_DATE)
             ORDER BY timestamp DESC
             LIMIT 1
-        """), {"store_id": store_id})
+        """), {"store_id": store_id, "target_date": target_date})
         queue_depth = queue_row.scalar() or 0
 
         # 5. Abandonment rate
@@ -138,8 +141,8 @@ async def compute_metrics(
             WHERE store_id = :store_id
               AND event_type = 'BILLING_QUEUE_ABANDON'
               AND is_staff = FALSE
-              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE
-        """), {"store_id": store_id})
+              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), CURRENT_DATE)
+        """), {"store_id": store_id, "target_date": target_date})
         abandon_count = abandon_row.scalar() or 0
         abandonment_rate = (
             round(abandon_count / unique_visitors, 4)

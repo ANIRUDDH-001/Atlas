@@ -1,5 +1,5 @@
 import structlog
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -22,6 +22,7 @@ logger = structlog.get_logger()
 async def get_funnel(
     store_id: str,
     request: Request,
+    target_date: date | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> FunnelResponse:
     store_id = validate_store_id(store_id)
@@ -41,7 +42,7 @@ async def get_funnel(
             FROM events
             WHERE store_id = :store_id
               AND is_staff = FALSE
-              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE
+              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), CURRENT_DATE)
             GROUP BY visitor_id
         ),
         purchasers AS (
@@ -56,7 +57,7 @@ async def get_funnel(
             WHERE e.store_id = :store_id
               AND e.zone_id IN ('BILLING', 'CHECKOUT', 'CASH_COUNTER')
               AND e.is_staff = FALSE
-              AND DATE(e.timestamp AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE
+              AND DATE(e.timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), CURRENT_DATE)
         )
         SELECT
             COUNT(*) FILTER (WHERE s.entered)            AS entry_count,
@@ -68,6 +69,7 @@ async def get_funnel(
     """), {
         "store_id": store_id,
         "window": POS_CORRELATION_WINDOW_SECONDS,
+        "target_date": target_date,
     })
 
     row = result.fetchone()
