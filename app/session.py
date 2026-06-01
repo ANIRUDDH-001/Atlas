@@ -36,7 +36,7 @@ async def count_unique_sessions(
             WHERE store_id = :store_id
               AND is_staff = FALSE
               AND event_type = 'ENTRY'
-              AND DATE(timestamp) = :target_date
+              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = :target_date
         """)
     else:
         query = text("""
@@ -45,7 +45,7 @@ async def count_unique_sessions(
             WHERE store_id = :store_id
               AND is_staff = FALSE
               AND event_type = 'ENTRY'
-              AND DATE(timestamp) = CURRENT_DATE
+              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE
         """)
 
     row = await db.execute(query, params)
@@ -74,7 +74,7 @@ async def get_session_summary(
         FROM events
         WHERE store_id = :store_id
           AND is_staff = FALSE
-          AND DATE(timestamp) = CURRENT_DATE
+          AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE
         GROUP BY visitor_id
     """), {"store_id": store_id})
     return [dict(row._mapping) for row in rows.fetchall()]
@@ -131,7 +131,7 @@ async def detect_reentry_inflation(
         FROM events
         WHERE store_id = :store_id
           AND is_staff = FALSE
-          AND DATE(timestamp) = CURRENT_DATE
+          AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE
     """), {"store_id": store_id})
     row = rows.fetchone()
     total   = row.total   or 0
