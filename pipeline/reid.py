@@ -7,7 +7,8 @@ use by the VisitorGallery re-entry detection system.
 import structlog
 import numpy as np
 import torch
-import torchvision.transforms as T
+import torchreid  # type: ignore  # type: ignore
+import torchvision.transforms as T  # type: ignore
 from PIL import Image
 from pathlib import Path
 
@@ -50,7 +51,7 @@ class ReIDExtractor:
         Load OSNet x0.25 via torchreid.
         Falls back to building from torchreid if weights file not found.
         """
-        import torchreid
+        import torchreid  # type: ignore
 
         model = torchreid.models.build_model(
             name="osnet_x0_25",

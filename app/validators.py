@@ -1,7 +1,7 @@
 import re
 from fastapi import HTTPException
 
-STORE_ID_PATTERN = re.compile(r"^STORE_[A-Z0-9]{2,10}(_\d{3})?$")
+STORE_ID_PATTERN = re.compile(r"^STORE_[A-Z0-9_]+$")
 
 def validate_store_id(store_id: str) -> str:
     """

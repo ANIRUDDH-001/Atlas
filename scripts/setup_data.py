@@ -14,7 +14,6 @@ Usage:
 import json
 import pandas as pd
 from pathlib import Path
-from datetime import datetime, timezone
 
 DATA_DIR = Path("data")
 

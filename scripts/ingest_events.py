@@ -38,7 +38,7 @@ def batched(iterable, n):
 
 def ingest_events(api_base: str, events_file: Path, batch_size: int):
     lines = events_file.read_text().strip().splitlines()
-    events = [json.loads(l) for l in lines if l.strip()]
+    events = [json.loads(line) for line in lines if line.strip()]
 
     print(f"Ingesting {len(events)} events in batches of {batch_size}")
     print(f"API: {api_base}")
@@ -78,11 +78,11 @@ def ingest_events(api_base: str, events_file: Path, batch_size: int):
         time.sleep(0.1)  # Gentle rate — don't overwhelm the API
 
     print("-" * 50)
-    print(f"INGEST COMPLETE")
+    print("INGEST COMPLETE")
     print(f"  Total events: {len(events)}")
     print(f"  Accepted:     {total_accepted}")
     print(f"  Rejected:     {total_rejected}")
-    print(f"\nVerify: curl http://localhost:8000/stores/STORE_ST1008/metrics | python3 -m json.tool")
+    print("\nVerify: curl http://localhost:8000/stores/STORE_ST1008/metrics | python3 -m json.tool")
 
 
 if __name__ == "__main__":

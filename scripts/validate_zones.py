@@ -1,7 +1,6 @@
 import cv2
 import json
 import numpy as np
-from pathlib import Path
 
 def draw_zones(frame, zones: dict, alpha=0.3):
     overlay = frame.copy()

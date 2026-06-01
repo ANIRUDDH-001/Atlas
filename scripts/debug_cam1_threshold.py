@@ -20,7 +20,8 @@ width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1920)
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1080)
 cap.release()
 
-out = cv2.VideoWriter(str(out_path), cv2.VideoWriter_fourcc(*'vp80'), fps, (width, height))
+out = cv2.VideoWriter(str(out_path), cv2.VideoWriter_fourcc(  # type: ignore
+    *'vp80'), fps, (width, height))
 
 layout_file = Path("data/store_layout.json")
 layout_data = json.loads(layout_file.read_text())

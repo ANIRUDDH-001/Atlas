@@ -1,9 +1,8 @@
 import json
 from pathlib import Path
-from collections import Counter
 
-events = [json.loads(l) for l in
-          Path("data/events.jsonl").read_text().splitlines() if l.strip()]
+events = [json.loads(line) for line in
+          Path("data/events.jsonl").read_text().splitlines() if line.strip()]
 
 reentry_count = sum(1 for e in events if e['event_type'] == 'REENTRY')
 entry_count   = sum(1 for e in events if e['event_type'] == 'ENTRY' and not e['is_staff'])

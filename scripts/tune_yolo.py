@@ -13,7 +13,7 @@ config = get_pipeline_config()
 config.detection_conf = test_conf
 
 detector = Detector(config)
-event_counts = collections.Counter()
+event_counts = collections.Counter()  # type: ignore
 
 for det in detector.process_clip(
     Path(video_file),
