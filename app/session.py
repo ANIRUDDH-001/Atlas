@@ -134,8 +134,8 @@ async def detect_reentry_inflation(
           AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE
     """), {"store_id": store_id})
     row = rows.fetchone()
-    total   = row.total   or 0
-    reentry = row.reentry or 0
+    total   = row.total   or 0  # type: ignore
+    reentry = row.reentry or 0  # type: ignore
     return {
         "total_visitors":   total,
         "reentry_visitors": reentry,

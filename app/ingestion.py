@@ -52,7 +52,7 @@ async def ingest_events(
 
     if not await _check_rate_limit(request, cache):
         from fastapi.responses import JSONResponse
-        return JSONResponse(
+        return JSONResponse(  # type: ignore
             status_code=429,
             content={
                 "error": "rate_limit_exceeded",
@@ -65,7 +65,7 @@ async def ingest_events(
     # Batch size guard (Pydantic enforces max_length=500 but belt-and-suspenders)
     if len(payload.events) > MAX_INGEST_BATCH_SIZE:
         from fastapi.responses import JSONResponse
-        return JSONResponse(
+        return JSONResponse(  # type: ignore
             status_code=400,
             content={
                 "error": "batch_too_large",
@@ -101,8 +101,8 @@ async def ingest_events(
             continue
 
         try:
-            result = await _insert_event(db, event)
-            if result.rowcount != 0:
+            result = await _insert_event(db, event)  # type: ignore
+            if result.rowcount != 0:  # type: ignore
                 accepted_ids.append(event.event_id)
                 affected_stores.add(event.store_id)
         except Exception as exc:
@@ -150,7 +150,7 @@ async def _insert_event(db: AsyncSession, event: StoreEvent) -> None:
     Insert a single event idempotently.
     ON CONFLICT (event_id) DO NOTHING ensures safe replay.
     """
-    return await db.execute(
+    return await db.execute(  # type: ignore
         text("""
             INSERT INTO events (
                 event_id, store_id, camera_id, visitor_id,

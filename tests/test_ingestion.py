@@ -66,7 +66,7 @@ class TestIdempotency:
     async def test_idempotent_large_batch(self, async_client, sample_events):
         """Idempotency holds for batches, not just single events."""
         payload = {"events": sample_events}
-        r1 = await async_client.post("/events/ingest", json=payload)
+        await async_client.post("/events/ingest", json=payload)
         r2 = await async_client.post("/events/ingest", json=payload)
         assert r2.json()["accepted"] == 0
         assert r2.json()["rejected"] == 0

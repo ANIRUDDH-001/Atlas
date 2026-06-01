@@ -9,15 +9,15 @@ engine_kwargs = {
     "pool_pre_ping": True,
 }
 if "sqlite" not in settings.database_url:
-    engine_kwargs["pool_size"] = 10
-    engine_kwargs["max_overflow"] = 20
+    engine_kwargs["pool_size"] = 10  # type: ignore
+    engine_kwargs["max_overflow"] = 20  # type: ignore
 
 engine = create_async_engine(
     settings.database_url,
     **engine_kwargs
 )
 
-AsyncSessionLocal = sessionmaker(
+AsyncSessionLocal = sessionmaker(  # type: ignore
     engine, class_=AsyncSession, expire_on_commit=False
 )
 

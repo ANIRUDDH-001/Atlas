@@ -117,17 +117,17 @@ def _patch_timestamps(events):
 @pytest.fixture
 def sample_events():
     lines = (FIXTURES_DIR / "sample_events.jsonl").read_text().splitlines()
-    return _patch_timestamps([json.loads(l) for l in lines if l.strip()])
+    return _patch_timestamps([json.loads(line) for line in lines if line.strip()])
 
 @pytest.fixture
 def staff_only_events():
     lines = (FIXTURES_DIR / "staff_events.jsonl").read_text().splitlines()
-    return _patch_timestamps([json.loads(l) for l in lines if l.strip()])
+    return _patch_timestamps([json.loads(line) for line in lines if line.strip()])
 
 @pytest.fixture
 def reentry_events():
     lines = (FIXTURES_DIR / "reentry_events.jsonl").read_text().splitlines()
-    return _patch_timestamps([json.loads(l) for l in lines if l.strip()])
+    return _patch_timestamps([json.loads(line) for line in lines if line.strip()])
 
 # ── App client ────────────────────────────────────────────────────────────────
 @pytest.fixture

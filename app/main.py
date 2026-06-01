@@ -2,19 +2,19 @@ import uuid
 import time
 import json
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager  # noqa: E402
 
 import structlog
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.responses import JSONResponse, StreamingResponse  # noqa: E402
 
 MAX_REQUEST_BODY_BYTES = 5 * 1024 * 1024  # 5MB
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError  # noqa: E402
 
-from app.config import get_settings
-from app.cache import close_redis as close_cache
-from app.exceptions import DatabaseUnavailableError
+from app.config import get_settings  # noqa: E402
+from app.cache import close_redis as close_cache  # noqa: E402
+from app.exceptions import DatabaseUnavailableError  # noqa: E402
 
 # ── Configure structlog ───────────────────────────────────────────────────────
 structlog.configure(
@@ -156,12 +156,12 @@ async def generic_error(request: Request, exc: Exception):
 
 # ── Router includes ────────────────────────────────────────────────────────────
 # Each router is imported from its module. Modules return 501 until implemented.
-from app.health import router as health_router
-from app.ingestion import router as ingest_router
-from app.metrics import router as metrics_router
-from app.funnel import router as funnel_router
-from app.heatmap import router as heatmap_router
-from app.anomalies import router as anomalies_router
+from app.health import router as health_router  # noqa: E402
+from app.ingestion import router as ingest_router  # noqa: E402
+from app.metrics import router as metrics_router  # noqa: E402
+from app.funnel import router as funnel_router  # noqa: E402
+from app.heatmap import router as heatmap_router  # noqa: E402
+from app.anomalies import router as anomalies_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(ingest_router)

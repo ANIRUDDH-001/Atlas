@@ -73,10 +73,10 @@ async def get_funnel(
     })
 
     row = result.fetchone()
-    entry    = row.entry_count    or 0
-    zone     = row.zone_count     or 0
-    billing  = row.billing_count  or 0
-    purchase = row.purchase_count or 0
+    entry    = row.entry_count    or 0  # type: ignore
+    zone     = row.zone_count     or 0  # type: ignore
+    billing  = row.billing_count  or 0  # type: ignore
+    purchase = row.purchase_count or 0  # type: ignore
 
     def dropoff(stage_a: int, stage_b: int) -> float:
         if stage_a == 0:

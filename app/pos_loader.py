@@ -64,7 +64,7 @@ async def load_pos_transactions(db: AsyncSession) -> int:
                     "timestamp": ts,
                     "basket": basket,
                 })
-                if result.rowcount != 0:
+                if result.rowcount != 0:  # type: ignore
                     inserted += 1
 
             except (ValueError, KeyError) as exc:

@@ -13,7 +13,8 @@
 
 import pytest
 import numpy as np
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 
@@ -24,7 +25,7 @@ class TestEmbeddingExtraction:
         """ReIDExtractor must return a non-None embedding for any valid crop."""
         from pipeline.reid import ReIDExtractor
         from pipeline.config import get_pipeline_config
-        cfg = get_pipeline_config()
+        get_pipeline_config()
         reid = ReIDExtractor()
         crop = np.random.randint(0, 255, (80, 40, 3), dtype=np.uint8)
         embedding = reid.extract(crop)
@@ -38,12 +39,12 @@ class TestEmbeddingExtraction:
         """ReIDExtractor must handle empty crops gracefully."""
         from pipeline.reid import ReIDExtractor
         from pipeline.config import get_pipeline_config
-        cfg = get_pipeline_config()
+        get_pipeline_config()
         reid = ReIDExtractor()
         empty = np.zeros((0, 0, 3), dtype=np.uint8)
         # Should return None without raising
         try:
-            result = reid.extract(empty)
+            reid.extract(empty)
             # None is acceptable; raising is not
         except Exception as e:
             pytest.fail(f"ReIDExtractor raised on empty crop: {e}")
@@ -64,7 +65,7 @@ class TestVisitorGallery:
 
     def create_detection(self, track_id, timestamp_sec):
         from pipeline.types import Detection
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timezone
         return Detection(
             track_id=track_id,
             bbox=(0, 0, 10, 10),
@@ -105,7 +106,7 @@ class TestVisitorGallery:
         mock_gallery.reid.extract.return_value = embedding
 
         det1 = self.create_detection(1, 0.0)
-        res1 = mock_gallery.resolve(det1, frame_crop=np.zeros((10,10,3)))
+        mock_gallery.resolve(det1, frame_crop=np.zeros((10,10,3)))
         import time
         mock_gallery.mark_exit(track_id=1, timestamp=time.time())
 
