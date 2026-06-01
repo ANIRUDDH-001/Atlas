@@ -33,7 +33,16 @@ class PipelineConfig:
 
     # Re-ID
     reid_model: str = "osnet_x0_25_msmt17.pt"
-    reid_similarity_threshold: float = 0.68
+    reid_similarity_threshold: float = 0.72
+    cross_camera_similarity_threshold: float = 0.68
+    # Lower than in-camera re-entry (0.72) because cross-camera matching
+    # involves angle changes, lighting shifts, and distance variation that
+    # degrade OSNet embeddings. 0.68 balances recall vs false-merge risk.
+    
+    cross_camera_dedup_window_sec: int = 120
+    # Brigade Road is ~500 sq ft. Entry-to-billing transit takes 60-120s
+    # at browsing pace. 60s window was too short for slow browsers.
+    
     reid_gallery_window_sec: int = 1800  # 30-min re-entry window
 
     # Staff detection
@@ -58,7 +67,13 @@ def get_pipeline_config() -> PipelineConfig:
     return PipelineConfig(
         detection_conf=float(os.getenv("PIPELINE_CONF", "0.45")),
         reid_similarity_threshold=float(
-            os.getenv("REENTRY_SIMILARITY_THRESHOLD", "0.68")
+            os.getenv("REENTRY_SIMILARITY_THRESHOLD", "0.72")
+        ),
+        cross_camera_similarity_threshold=float(
+            os.getenv("CROSS_CAMERA_SIMILARITY_THRESHOLD", "0.68")
+        ),
+        cross_camera_dedup_window_sec=int(
+            os.getenv("CROSS_CAMERA_DEDUP_WINDOW_SEC", "120")
         ),
         reid_gallery_window_sec=int(
             os.getenv("REENTRY_WINDOW_SECONDS", "1800")

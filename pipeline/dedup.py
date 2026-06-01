@@ -16,7 +16,6 @@ Strategy:
 This deduplication runs BEFORE the VisitorGallery re-entry check to ensure
 cross-camera identity merging takes precedence over re-entry detection.
 """
-import time
 import structlog
 import numpy as np
 from dataclasses import dataclass
@@ -26,8 +25,6 @@ from pipeline.reid import cosine_similarity
 from pipeline.config import PipelineConfig
 
 logger = structlog.get_logger()
-
-DEDUP_WINDOW_SECONDS = 60  # How long to keep cross-camera candidates
 
 
 @dataclass
@@ -55,7 +52,7 @@ class CrossCameraDeduplicator:
 
     def __init__(self, config: PipelineConfig):
         self._config = config
-        self._threshold = config.reid_similarity_threshold
+        self._threshold = config.cross_camera_similarity_threshold
         # Registry: visitor_id → CameraObservation
         self._registry: dict[str, CameraObservation] = {}
         # Merge map: alias_visitor_id → canonical_visitor_id
@@ -145,7 +142,7 @@ class CrossCameraDeduplicator:
             if obs.camera_id == camera_id:
                 continue
             # Only within the dedup time window
-            if (timestamp - obs.timestamp) > DEDUP_WINDOW_SECONDS:
+            if (timestamp - obs.timestamp) > self._config.cross_camera_dedup_window_sec:
                 continue
             if obs.embedding is None:
                 continue
@@ -163,7 +160,7 @@ class CrossCameraDeduplicator:
         """Remove entries outside the dedup window."""
         expired = [
             vid for vid, obs in self._registry.items()
-            if (current_ts - obs.timestamp) > DEDUP_WINDOW_SECONDS * 2
+            if (current_ts - obs.timestamp) > self._config.cross_camera_dedup_window_sec * 2
         ]
         for vid in expired:
             del self._registry[vid]
