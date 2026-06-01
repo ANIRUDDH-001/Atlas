@@ -51,7 +51,6 @@ class ReIDExtractor:
         Load OSNet x0.25 via torchreid.
         Falls back to building from torchreid if weights file not found.
         """
-        import torchreid  # type: ignore
 
         model = torchreid.models.build_model(
             name="osnet_x0_25",
