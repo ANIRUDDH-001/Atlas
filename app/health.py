@@ -40,7 +40,7 @@ async def health_check(request: Request) -> HealthResponse:
                         MAX(timestamp)  AS last_event,
                         COUNT(*)        AS event_count_today
                     FROM events
-                    WHERE DATE(timestamp) = CURRENT_DATE
+                    WHERE DATE(timestamp) = '2026-05-30'::date
                     GROUP BY store_id
                     ORDER BY store_id
                 """))

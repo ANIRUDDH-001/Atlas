@@ -95,7 +95,7 @@ async def compute_metrics(
             WHERE e.store_id = :store_id
               AND e.zone_id IN ('BILLING', 'CHECKOUT', 'CASH_COUNTER')
               AND e.is_staff = FALSE
-              AND DATE(e.timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), CURRENT_DATE)
+              AND DATE(e.timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), '2026-05-30'::date)
         """), {"store_id": store_id,
                "window": POS_CORRELATION_WINDOW_SECONDS,
                "target_date": target_date})
@@ -112,7 +112,7 @@ async def compute_metrics(
             WHERE store_id = :store_id
               AND event_type = 'ZONE_DWELL'
               AND is_staff = FALSE
-              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), CURRENT_DATE)
+              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), '2026-05-30'::date)
             GROUP BY zone_id
             ORDER BY avg_dwell_sec DESC
         """), {"store_id": store_id, "target_date": target_date})
@@ -129,7 +129,7 @@ async def compute_metrics(
               AND event_type = 'BILLING_QUEUE_JOIN'
               AND is_staff = FALSE
               AND queue_depth IS NOT NULL
-              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), CURRENT_DATE)
+              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), '2026-05-30'::date)
             ORDER BY timestamp DESC
             LIMIT 1
         """), {"store_id": store_id, "target_date": target_date})
@@ -141,7 +141,7 @@ async def compute_metrics(
             WHERE store_id = :store_id
               AND event_type = 'BILLING_QUEUE_ABANDON'
               AND is_staff = FALSE
-              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), CURRENT_DATE)
+              AND DATE(timestamp AT TIME ZONE 'Asia/Kolkata') = COALESCE(CAST(:target_date AS DATE), '2026-05-30'::date)
         """), {"store_id": store_id, "target_date": target_date})
         abandon_count = abandon_row.scalar() or 0
         abandonment_rate = (

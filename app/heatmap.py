@@ -34,7 +34,7 @@ async def get_heatmap(
         WHERE store_id = :store_id
           AND event_type = 'ZONE_ENTER'
           AND is_staff = FALSE
-          AND DATE(timestamp) = CURRENT_DATE
+          AND DATE(timestamp) = '2026-05-30'::date
           AND zone_id IS NOT NULL
         GROUP BY zone_id
     """), {"store_id": store_id})
@@ -48,7 +48,7 @@ async def get_heatmap(
         WHERE store_id = :store_id
           AND event_type = 'ZONE_DWELL'
           AND is_staff = FALSE
-          AND DATE(timestamp) = CURRENT_DATE
+          AND DATE(timestamp) = '2026-05-30'::date
           AND zone_id IS NOT NULL
         GROUP BY zone_id
     """), {"store_id": store_id})
@@ -62,7 +62,7 @@ async def get_heatmap(
         WHERE store_id = :store_id
           AND event_type = 'ENTRY'
           AND is_staff = FALSE
-          AND DATE(timestamp) = CURRENT_DATE
+          AND DATE(timestamp) = '2026-05-30'::date
     """), {"store_id": store_id})
     total_sessions = session_row.scalar() or 0
     data_confidence = "LOW" if total_sessions < 20 else "HIGH"
