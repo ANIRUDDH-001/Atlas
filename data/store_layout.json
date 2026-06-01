@@ -7,7 +7,7 @@
       "close": "22:00"
     },
     "cameras": {
-      "CAM 1.mp4": {
+      "CAM_ENTRY_01": {
         "type": "entry_exit",
         "source_file": "CAM 1.mp4",
         "fps": 29.97,
@@ -52,7 +52,7 @@
           ]
         }
       },
-      "CAM 2.mp4": {
+      "CAM_FLOOR_01": {
         "type": "floor",
         "source_file": "CAM 2.mp4",
         "fps": 29.97,
@@ -114,7 +114,7 @@
           ]
         }
       },
-      "CAM 3.mp4": {
+      "CAM_FLOOR_02": {
         "type": "floor",
         "source_file": "CAM 3.mp4",
         "fps": 29.97,
@@ -176,7 +176,7 @@
           ]
         }
       },
-      "CAM 4.mp4": {
+      "CAM_FLOOR_03": {
         "type": "floor",
         "source_file": "CAM 4.mp4",
         "fps": 24.98,
@@ -238,7 +238,7 @@
           ]
         }
       },
-      "CAM 5.mp4": {
+      "CAM_BILLING_01": {
         "type": "billing",
         "source_file": "CAM 5.mp4",
         "fps": 24.98,
