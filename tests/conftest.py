@@ -50,6 +50,7 @@ def setup_sqlite_schema():
         statement = re.sub(r"NOW\(\)\s*-\s*INTERVAL\s*'1 minute'\s*\*\s*(?:\?|:[a-zA-Z0-9_]+)", r"datetime('now', '-' || ? || ' minutes')", statement)
         statement = re.sub(r"([a-zA-Z0-9_\.]*timestamp|\?|:[a-zA-Z0-9_]+)\s*-\s*INTERVAL\s*'1 second'\s*\*\s*(?:\?|:[a-zA-Z0-9_]+)", r"datetime(\1, '-' || ? || ' seconds')", statement)
         statement = re.sub(r"BOOL_OR\(([\s\S]*?)\)", r"MAX(\1)", statement)
+        statement = re.sub(r'CAST\(([^ ]+)\s+AS\s+DATE\)', r'\1', statement)
         return statement, parameters
         
     with sync_engine.begin() as conn:
@@ -93,6 +94,7 @@ def setup_sqlite_schema():
         statement = re.sub(r"NOW\(\)\s*-\s*INTERVAL\s*'1 minute'\s*\*\s*(?:\?|:[a-zA-Z0-9_]+)", r"datetime('now', '-' || ? || ' minutes')", statement)
         statement = re.sub(r"([a-zA-Z0-9_\.]*timestamp|\?|:[a-zA-Z0-9_]+)\s*-\s*INTERVAL\s*'1 second'\s*\*\s*(?:\?|:[a-zA-Z0-9_]+)", r"datetime(\1, '-' || ? || ' seconds')", statement)
         statement = re.sub(r"BOOL_OR\(([\s\S]*?)\)", r"MAX(\1)", statement)
+        statement = re.sub(r'CAST\(([^ ]+)\s+AS\s+DATE\)', r'\1', statement)
         if "INTERVAL" in statement:
             print("FAILED TO TRANSLATE INTERVAL:", original)
             print("NEW STATEMENT:", statement)
