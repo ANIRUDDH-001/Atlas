@@ -15,7 +15,7 @@ def validate_store_id(store_id: str) -> str:
             status_code=400,
             detail={
                 "error": "invalid_store_id",
-                "message": f"store_id must match pattern STORE_<CITY>_<NNN>",
+                "message": "store_id must match pattern STORE_<CITY>_<NNN>",
                 "received": store_id,
             },
         )

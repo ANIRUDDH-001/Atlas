@@ -16,7 +16,6 @@ from dataclasses import dataclass
 
 from shapely.geometry import Point, Polygon as ShapelyPolygon
 
-from pipeline.types import StoreLayout, ZoneDefinition
 from pipeline.config import PipelineConfig
 
 logger = structlog.get_logger()

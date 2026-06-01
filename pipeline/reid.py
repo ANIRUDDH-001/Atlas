@@ -114,7 +114,7 @@ class ReIDExtractor:
         Extract embeddings for a batch of crops.
         More efficient than calling extract() in a loop for large batches.
         """
-        results = []
+        results: list[np.ndarray | None] = []
         valid_indices = []
         valid_tensors = []
 

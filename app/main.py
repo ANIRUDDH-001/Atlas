@@ -3,10 +3,9 @@ import time
 import json
 import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime
 
 import structlog
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -14,9 +13,8 @@ MAX_REQUEST_BODY_BYTES = 5 * 1024 * 1024  # 5MB
 from sqlalchemy.exc import OperationalError
 
 from app.config import get_settings
-from app.db import engine
 from app.cache import close_redis as close_cache
-from app.exceptions import DatabaseUnavailableError, StoreIntelligenceError
+from app.exceptions import DatabaseUnavailableError
 
 # ── Configure structlog ───────────────────────────────────────────────────────
 structlog.configure(
@@ -118,7 +116,6 @@ async def log_requests(request: Request, call_next):
 # ── Global exception handlers ──────────────────────────────────────────────────
 @app.exception_handler(OperationalError)
 async def db_op_error_handler(request: Request, exc: OperationalError):
-    import traceback
     logger.error("db_unavailable", path=request.url.path, error=type(exc).__name__, trace_id=getattr(request.state, "trace_id", None))
     return JSONResponse(
         status_code=503,

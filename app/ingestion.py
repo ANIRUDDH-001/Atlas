@@ -82,7 +82,7 @@ async def ingest_events(
         if isinstance(item, dict):
             try:
                 event = StoreEvent.model_validate(item)
-            except ValidationError as exc:
+            except ValidationError:
                 rejected.append(IngestError(
                     event_id=item.get("event_id", "unknown"),
                     reason="malformed_event",

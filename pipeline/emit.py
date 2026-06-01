@@ -11,8 +11,8 @@ import json
 import uuid
 import structlog
 from pathlib import Path
-from datetime import datetime, timezone
-from dataclasses import dataclass, field
+from datetime import datetime
+from dataclasses import dataclass
 from typing import Optional
 
 from pipeline.types import TrackedVisitor

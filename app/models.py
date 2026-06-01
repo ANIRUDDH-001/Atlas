@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator, UUID4
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import datetime
 from app.constants import EventType

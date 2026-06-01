@@ -195,3 +195,13 @@ aggregates would be the correct architecture. Redis would scale to a cluster.
 The current dual-layer design is the minimum viable production stack that
 demonstrates the correct architectural pattern without over-engineering a
 hackathon submission.
+
+---
+
+## Fine-Tuning Calibration Notes
+
+### Staff Detector
+The default purple hue range (130-160) was found to be inadequate for the Brigade Road store where staff wear black uniforms. Upon sampling the upper body region of the staff in `CAM 5.mp4`, the average Saturation was 76.1 and Value was 127.7. The default `staff_black_value_upper: 60` was too conservative, so we adjusted `staff_black_value_upper` to 150 and `staff_black_sat_upper` to 100 to robustly detect the black uniforms.
+
+### Re-ID Gallery Threshold
+Testing showed a 0.0% re-entry rate with `reid_similarity_threshold: 0.72`. We reduced this to `0.68` as the face-blurring in the dataset causes a drop in Re-ID cosine similarity for legitimate re-entries.

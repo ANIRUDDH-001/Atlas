@@ -1,5 +1,5 @@
 """Shared types for pipeline inter-module communication."""
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 import numpy as np

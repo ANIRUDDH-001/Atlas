@@ -1,6 +1,6 @@
 import csv
 import structlog
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
