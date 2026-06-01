@@ -14,7 +14,6 @@ os.environ["REDIS_URL"] = "redis://localhost:6379/1"
 
 import json
 import pytest
-import asyncio
 from pathlib import Path
 from httpx import AsyncClient, ASGITransport
 from datetime import datetime, timezone
@@ -29,7 +28,6 @@ def mock_redis_and_sqlite():
     mock_redis = AsyncMock()
     app.dependency_overrides[get_redis] = lambda: mock_redis
 
-    import sys
     # Also patch the actual function so app.health.py can call it directly
     from unittest.mock import patch
     patcher = patch("app.health.get_redis", new_callable=AsyncMock, return_value=mock_redis)
@@ -46,6 +44,7 @@ def setup_sqlite_schema():
     @event.listens_for(sync_engine, "before_cursor_execute", retval=True)
     def translate_postgres_to_sqlite(conn, cursor, statement, parameters, context, executemany):
         statement = re.sub(r'([a-zA-Z0-9_\.]*timestamp)::date', r'DATE(\1)', statement)
+        statement = re.sub(r"AT TIME ZONE '[^']+'", "", statement)
         statement = re.sub(r"NOW\(\)\s*-\s*INTERVAL\s*'5 minutes'", r"datetime('now', '-5 minutes')", statement)
         statement = statement.replace("NOW()", "datetime('now')")
         statement = re.sub(r"NOW\(\)\s*-\s*INTERVAL\s*'1 minute'\s*\*\s*(?:\?|:[a-zA-Z0-9_]+)", r"datetime('now', '-' || ? || ' minutes')", statement)
@@ -88,6 +87,7 @@ def setup_sqlite_schema():
     def translate_postgres_to_sqlite_async(conn, cursor, statement, parameters, context, executemany):
         original = statement
         statement = re.sub(r'([a-zA-Z0-9_\.]*timestamp)::date', r'DATE(\1)', statement)
+        statement = re.sub(r"AT TIME ZONE '[^']+'", "", statement)
         statement = re.sub(r"NOW\(\)\s*-\s*INTERVAL\s*'5 minutes'", r"datetime('now', '-5 minutes')", statement)
         statement = statement.replace("NOW()", "datetime('now')")
         statement = re.sub(r"NOW\(\)\s*-\s*INTERVAL\s*'1 minute'\s*\*\s*(?:\?|:[a-zA-Z0-9_]+)", r"datetime('now', '-' || ? || ' minutes')", statement)
