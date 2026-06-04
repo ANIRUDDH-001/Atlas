@@ -31,47 +31,68 @@ async def load_pos_transactions(db: AsyncSession) -> int:
         reader = csv.DictReader(f)
         reader.fieldnames = [name.strip() for name in reader.fieldnames or []]
 
-        required = {"store_id", "transaction_id", "timestamp", "basket_value_inr"}
+        required = {"order_id", "order_date", "order_time", "store_id", "total_amount"}
         if not required.issubset(set(reader.fieldnames)):
             logger.error("pos_csv_bad_headers",
                          found=reader.fieldnames,
                          required=list(required))
             return 0
 
+        # Group by order_id to get invoice-level data
+        invoices = {}
+
         for line_num, row in enumerate(reader, start=2):
             try:
-                store_id       = row["store_id"].strip()
-                transaction_id = row["transaction_id"].strip()
-                ts_str         = row["timestamp"].strip()
-                basket_str     = row["basket_value_inr"].strip()
+                order_id = row["order_id"].strip()
+                date_str = row["order_date"].strip()
+                time_str = row["order_time"].strip()
+                store_id = row["store_id"].strip()
+                # Handle store_id format mismatch. Events use STORE_ST1008, POS might use ST1008
+                if not store_id.startswith("STORE_"):
+                    store_id = f"STORE_{store_id}"
+                    
+                amount_str = row["total_amount"].strip()
 
-                if not all([store_id, transaction_id, ts_str, basket_str]):
+                if not all([order_id, date_str, time_str, store_id, amount_str]):
                     skipped += 1
                     continue
 
-                ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-                basket = float(basket_str)
-
-                result = await db.execute(text("""
-                    INSERT INTO pos_transactions
-                        (transaction_id, store_id, timestamp, basket_value)
-                    VALUES
-                        (:transaction_id, :store_id, :timestamp, :basket)
-                    ON CONFLICT (transaction_id) DO NOTHING
-                """), {
-                    "transaction_id": transaction_id,
-                    "store_id": store_id,
-                    "timestamp": ts,
-                    "basket": basket,
-                })
-                if result.rowcount != 0:  # type: ignore
-                    inserted += 1
+                # Expected format: 10-04-2026, 12:15:05
+                # We assume IST (+05:30) for POS transactions if not specified, 
+                dt_str = f"{date_str[6:10]}-{date_str[3:5]}-{date_str[0:2]}T{time_str}+05:30"
+                ts = datetime.fromisoformat(dt_str)
+                
+                amount = float(amount_str)
+                
+                if order_id not in invoices:
+                    invoices[order_id] = {
+                        "store_id": store_id,
+                        "timestamp": ts,
+                        "basket": 0.0
+                    }
+                invoices[order_id]["basket"] += amount
 
             except (ValueError, KeyError) as exc:
                 malformed += 1
                 logger.warning("pos_row_malformed",
                                line=line_num, error=str(exc))
                 continue
+
+        for transaction_id, inv in invoices.items():
+            result = await db.execute(text("""
+                INSERT INTO pos_transactions
+                    (transaction_id, store_id, timestamp, basket_value)
+                VALUES
+                    (:transaction_id, :store_id, :timestamp, :basket)
+                ON CONFLICT (transaction_id) DO NOTHING
+            """), {
+                "transaction_id": transaction_id,
+                "store_id": inv["store_id"],
+                "timestamp": inv["timestamp"],
+                "basket": inv["basket"],
+            })
+            if result.rowcount != 0:  # type: ignore
+                inserted += 1
 
     await db.commit()
     logger.info("pos_load_complete",

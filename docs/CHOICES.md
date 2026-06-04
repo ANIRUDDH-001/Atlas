@@ -378,3 +378,5 @@ Config values `default_frame_height=1080`, `default_frame_width=1920` are
 used when OpenCV cannot read dimensions from the container (rare, but
 happens with malformed MP4 headers).
 
+#   P R O M P T :   J u s t i f y   d e c i s i o n   t o   a d h e r e   t o   t h e   P D F   s c h e m a   i n s t e a d   o f   s a m p l e _ e v e n t s . j s o n l  
+ 

@@ -1,18 +1,251 @@
 {
-  "STORE_ST1008": {
-    "store_name": "Brigade Road, Bangalore",
+  "STORE_1": {
+    "store_name": "Store 1",
     "city": "Bangalore",
     "open_hours": {
       "open": "10:00",
       "close": "22:00"
     },
     "cameras": {
+      "CAM_FLOOR_01": {
+        "type": "floor",
+        "source_file": "CAM 1 - zone.mp4",
+        "fps": 30.0,
+        "zones": {
+          "FLOOR": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0
+            ],
+            [
+              1.0,
+              1.0
+            ],
+            [
+              0.0,
+              1.0
+            ]
+          ]
+        }
+      },
+      "CAM_FLOOR_02": {
+        "type": "floor",
+        "source_file": "CAM 2 - zone.mp4",
+        "fps": 30.0,
+        "zones": {
+          "FLOOR": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0
+            ],
+            [
+              1.0,
+              1.0
+            ],
+            [
+              0.0,
+              1.0
+            ]
+          ]
+        }
+      },
       "CAM_ENTRY_01": {
         "type": "entry_exit",
-        "source_file": "CAM 1.mp4",
-        "fps": 29.97,
+        "source_file": "CAM 3 - entry.mp4",
+        "fps": 30.0,
         "threshold_y": 0.6,
-        "description": "Glass entrance doorway, left side",
+        "zones": {
+          "ENTRY": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.6
+            ],
+            [
+              0.0,
+              0.6
+            ]
+          ],
+          "FLOOR": [
+            [
+              0.0,
+              0.6
+            ],
+            [
+              1.0,
+              0.6
+            ],
+            [
+              1.0,
+              1.0
+            ],
+            [
+              0.0,
+              1.0
+            ]
+          ]
+        }
+      },
+      "CAM_BILLING_01": {
+        "type": "billing",
+        "source_file": "CAM 5 - billing.mp4",
+        "fps": 30.0,
+        "zones": {
+          "BILLING": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.7
+            ],
+            [
+              0.0,
+              0.7
+            ]
+          ],
+          "BILLING_QUEUE": [
+            [
+              0.0,
+              0.7
+            ],
+            [
+              1.0,
+              0.7
+            ],
+            [
+              1.0,
+              1.0
+            ],
+            [
+              0.0,
+              1.0
+            ]
+          ]
+        }
+      }
+    }
+  },
+  "STORE_2": {
+    "store_name": "Store 2",
+    "city": "Bangalore",
+    "open_hours": {
+      "open": "10:00",
+      "close": "22:00"
+    },
+    "cameras": {
+      "CAM_BILLING_01": {
+        "type": "billing",
+        "source_file": "billing_area.mp4",
+        "fps": 30.0,
+        "zones": {
+          "BILLING": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.7
+            ],
+            [
+              0.0,
+              0.7
+            ]
+          ],
+          "BILLING_QUEUE": [
+            [
+              0.0,
+              0.7
+            ],
+            [
+              1.0,
+              0.7
+            ],
+            [
+              1.0,
+              1.0
+            ],
+            [
+              0.0,
+              1.0
+            ]
+          ]
+        }
+      },
+      "CAM_ENTRY_01": {
+        "type": "entry_exit",
+        "source_file": "entry 1.mp4",
+        "fps": 30.0,
+        "threshold_y": 0.6,
+        "zones": {
+          "ENTRY": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.6
+            ],
+            [
+              0.0,
+              0.6
+            ]
+          ],
+          "FLOOR": [
+            [
+              0.0,
+              0.6
+            ],
+            [
+              1.0,
+              0.6
+            ],
+            [
+              1.0,
+              1.0
+            ],
+            [
+              0.0,
+              1.0
+            ]
+          ]
+        }
+      },
+      "CAM_ENTRY_02": {
+        "type": "entry_exit",
+        "source_file": "entry 2.mp4",
+        "fps": 30.0,
+        "threshold_y": 0.6,
         "zones": {
           "ENTRY": [
             [
@@ -54,215 +287,10 @@
       },
       "CAM_FLOOR_01": {
         "type": "floor",
-        "source_file": "CAM 2.mp4",
-        "fps": 29.97,
-        "description": "Top wall skincare brands",
+        "source_file": "zone.mp4",
+        "fps": 30.0,
         "zones": {
-          "SKINCARE": [
-            [
-              0.0,
-              0.0
-            ],
-            [
-              0.7,
-              0.0
-            ],
-            [
-              0.7,
-              0.6
-            ],
-            [
-              0.0,
-              0.6
-            ]
-          ],
-          "HAIRCARE": [
-            [
-              0.7,
-              0.0
-            ],
-            [
-              1.0,
-              0.0
-            ],
-            [
-              1.0,
-              0.6
-            ],
-            [
-              0.7,
-              0.6
-            ]
-          ],
-          "WALKWAY": [
-            [
-              0.0,
-              0.6
-            ],
-            [
-              1.0,
-              0.6
-            ],
-            [
-              1.0,
-              1.0
-            ],
-            [
-              0.0,
-              1.0
-            ]
-          ]
-        }
-      },
-      "CAM_FLOOR_02": {
-        "type": "floor",
-        "source_file": "CAM 3.mp4",
-        "fps": 29.97,
-        "description": "Centre floor makeup and fragrance units",
-        "zones": {
-          "MAKEUP": [
-            [
-              0.0,
-              0.1
-            ],
-            [
-              0.55,
-              0.1
-            ],
-            [
-              0.55,
-              0.8
-            ],
-            [
-              0.0,
-              0.8
-            ]
-          ],
-          "FRAGRANCE": [
-            [
-              0.55,
-              0.1
-            ],
-            [
-              1.0,
-              0.1
-            ],
-            [
-              1.0,
-              0.8
-            ],
-            [
-              0.55,
-              0.8
-            ]
-          ],
-          "WALKWAY": [
-            [
-              0.0,
-              0.8
-            ],
-            [
-              1.0,
-              0.8
-            ],
-            [
-              1.0,
-              1.0
-            ],
-            [
-              0.0,
-              1.0
-            ]
-          ]
-        }
-      },
-      "CAM_FLOOR_03": {
-        "type": "floor",
-        "source_file": "CAM 4.mp4",
-        "fps": 24.98,
-        "description": "Bottom wall beauty and wellness brands",
-        "zones": {
-          "BEAUTY": [
-            [
-              0.0,
-              0.0
-            ],
-            [
-              0.6,
-              0.0
-            ],
-            [
-              0.6,
-              0.65
-            ],
-            [
-              0.0,
-              0.65
-            ]
-          ],
-          "WELLNESS": [
-            [
-              0.6,
-              0.0
-            ],
-            [
-              1.0,
-              0.0
-            ],
-            [
-              1.0,
-              0.65
-            ],
-            [
-              0.6,
-              0.65
-            ]
-          ],
-          "WALKWAY": [
-            [
-              0.0,
-              0.65
-            ],
-            [
-              1.0,
-              0.65
-            ],
-            [
-              1.0,
-              1.0
-            ],
-            [
-              0.0,
-              1.0
-            ]
-          ]
-        }
-      },
-      "CAM_BILLING_01": {
-        "type": "billing",
-        "source_file": "CAM 5.mp4",
-        "fps": 24.98,
-        "description": "Cash counter / billing area",
-        "roi_mask": [
-          [
-            0.0,
-            0.0
-          ],
-          [
-            0.55,
-            0.0
-          ],
-          [
-            0.55,
-            1.0
-          ],
-          [
-            0.0,
-            1.0
-          ]
-        ],
-        "zones": {
-          "BILLING": [
+          "FLOOR": [
             [
               0.0,
               0.0
@@ -270,24 +298,6 @@
             [
               1.0,
               0.0
-            ],
-            [
-              1.0,
-              0.75
-            ],
-            [
-              0.0,
-              0.75
-            ]
-          ],
-          "BILLING_QUEUE": [
-            [
-              0.0,
-              0.75
-            ],
-            [
-              1.0,
-              0.75
             ],
             [
               1.0,

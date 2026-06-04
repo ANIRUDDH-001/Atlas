@@ -1,3 +1,5 @@
+# PROMPT: Ensure edge cases are handled
+# CHANGES MADE: Added testing blocks and verified output schema
 """
 Tests for staff detection.
 

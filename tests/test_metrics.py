@@ -110,9 +110,7 @@ class TestDataConfidence:
     @pytest.mark.asyncio
     async def test_low_confidence_threshold_is_five(self, async_client):
         """A store with 6 visitors must report HIGH confidence, not LOW."""
-        from datetime import datetime, timezone
-
-        today = datetime.now(timezone.utc).isoformat()
+        today = "2026-05-30T10:00:00Z"
         events = [
             {
                 "event_id": str(uuid.uuid4()),
@@ -179,9 +177,6 @@ class TestReentryDeduplication:
     @pytest.mark.asyncio
     async def test_reentry_counts_as_one_session_in_funnel(self, async_client):
         """A visitor who exits and re-enters must appear once in funnel entry count."""
-        from datetime import datetime, timezone, timedelta
-        now = datetime.now(timezone.utc)
-
         events = [
             {
                 "event_id": "0e5e6d07-bfb6-40fa-a4f0-85ea5d1d997b",
@@ -189,7 +184,7 @@ class TestReentryDeduplication:
                 "camera_id": "CAM_ENTRY_01",
                 "visitor_id": "VIS_REENTRY",
                 "event_type": "ENTRY",
-                "timestamp": now.isoformat(),
+                "timestamp": "2026-05-30T10:00:00Z",
                 "zone_id": None,
                 "metadata": {"queue_depth": None, "session_seq": 1},
                 "is_staff": False,
@@ -202,7 +197,7 @@ class TestReentryDeduplication:
                 "camera_id": "CAM_ENTRY_01",
                 "visitor_id": "VIS_REENTRY",   # same visitor_id
                 "event_type": "REENTRY",         # came back
-                "timestamp": (now + timedelta(minutes=20)).isoformat(),
+                "timestamp": "2026-05-30T10:20:00Z",
                 "zone_id": None,
                 "metadata": {"queue_depth": None, "session_seq": 1},
                 "is_staff": False,

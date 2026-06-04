@@ -134,16 +134,18 @@ class EventEmitter:
                     dwell_ms=dwell_ms,
                 )
                 self._remove_from_zone(visitor_id, current_zone)
-                # Clear billing state if leaving billing zone without purchase
+                # Clear billing state if leaving billing zone entirely without purchase
                 if current_zone in BILLING_ZONES and visitor_id in self._billing_states:
-                    self._write_event(
-                        store_id=store_id,
-                        visitor=visitor,
-                        event_type=EventType.BILLING_QUEUE_ABANDON.value,
-                        zone_id=current_zone,
-                        dwell_ms=dwell_ms,
-                    )
-                    del self._billing_states[visitor_id]
+                    # If the new zone is NOT a billing zone, it's an abandon.
+                    if zone_id not in BILLING_ZONES:
+                        self._write_event(
+                            store_id=store_id,
+                            visitor=visitor,
+                            event_type=EventType.BILLING_QUEUE_ABANDON.value,
+                            zone_id=current_zone,
+                            dwell_ms=dwell_ms,
+                        )
+                        del self._billing_states[visitor_id]
 
             # Zone enter
             if zone_id is not None:

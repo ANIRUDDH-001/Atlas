@@ -7,7 +7,7 @@ class PipelineConfig:
     target_fps: int = 30  # cameras are 29.97fps (CAMs 1-3) and 24.98fps (CAMs 4-5)
                           # per pipeline/camera_map.json; 30 used as fallback when
                           # OpenCV cannot read fps from container metadata
-    process_every_n_frames: int = 1  # Process every frame (set >1 to skip)
+    process_every_n_frames: int = 5  # Process every 5th frame to speed up
     imgsz: int = 640              # YOLO inference size
     default_frame_height: int = 1080  # fallback when OpenCV can't read from container
     default_frame_width: int = 1920

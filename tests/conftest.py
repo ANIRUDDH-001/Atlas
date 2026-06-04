@@ -8,15 +8,15 @@ Database strategy:
 All test files include a PROMPT block header per hackathon requirements.
 """
 import os
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///test.db"
-# Also mock Redis URL so it doesn't fail on cache warm-up if Redis is not running
-os.environ["REDIS_URL"] = "redis://localhost:6379/1"
+if os.environ.get("TEST_USE_LIVE_DB") != "1":
+    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///test.db"
+    # Also mock Redis URL so it doesn't fail on cache warm-up if Redis is not running
+    os.environ["REDIS_URL"] = "redis://localhost:6379/1"
 
 import json
 import pytest
 from pathlib import Path
 from httpx import AsyncClient, ASGITransport
-from datetime import datetime, timezone
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -51,6 +51,7 @@ def setup_sqlite_schema():
         statement = re.sub(r"([a-zA-Z0-9_\.]*timestamp|\?|:[a-zA-Z0-9_]+)\s*-\s*INTERVAL\s*'1 second'\s*\*\s*(?:\?|:[a-zA-Z0-9_]+)", r"datetime(\1, '-' || ? || ' seconds')", statement)
         statement = re.sub(r"BOOL_OR\(([\s\S]*?)\)", r"MAX(\1)", statement)
         statement = re.sub(r'CAST\(([^ ]+)\s+AS\s+DATE\)', r'\1', statement)
+        statement = re.sub(r"'([^']+)'::date", r"'\1'", statement)
         return statement, parameters
         
     with sync_engine.begin() as conn:
@@ -95,19 +96,15 @@ def setup_sqlite_schema():
         statement = re.sub(r"([a-zA-Z0-9_\.]*timestamp|\?|:[a-zA-Z0-9_]+)\s*-\s*INTERVAL\s*'1 second'\s*\*\s*(?:\?|:[a-zA-Z0-9_]+)", r"datetime(\1, '-' || ? || ' seconds')", statement)
         statement = re.sub(r"BOOL_OR\(([\s\S]*?)\)", r"MAX(\1)", statement)
         statement = re.sub(r'CAST\(([^ ]+)\s+AS\s+DATE\)', r'\1', statement)
+        statement = re.sub(r"'([^']+)'::date", r"'\1'", statement)
         if "INTERVAL" in statement:
             print("FAILED TO TRANSLATE INTERVAL:", original)
             print("NEW STATEMENT:", statement)
         return statement, parameters
-        statement = re.sub(r"NOW\(\)\s*-\s*INTERVAL\s*'5 minutes'", r"datetime('now', '-5 minutes')", statement)
-        statement = statement.replace("NOW()", "datetime('now')")
-        statement = re.sub(r"NOW\(\)\s*-\s*INTERVAL\s*'1 minute'\s*\*\s*(?:\?|:[a-zA-Z0-9_]+)", r"datetime('now', '-' || ? || ' minutes')", statement)
-        statement = re.sub(r"([a-zA-Z0-9_\.]*timestamp|\?|:[a-zA-Z0-9_]+)\s*-\s*INTERVAL\s*'1 second'\s*\*\s*(?:\?|:[a-zA-Z0-9_]+)", r"datetime(\1, '-' || ? || ' seconds')", statement)
-        return statement, parameters
 
 
 def _patch_timestamps(events):
-    now_str = datetime.now(timezone.utc).isoformat()
+    now_str = "2026-05-30T10:00:00Z"
     for e in events:
         if "timestamp" in e:
             e["timestamp"] = now_str
