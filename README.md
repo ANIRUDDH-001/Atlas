@@ -1,156 +1,54 @@
-# Atlas — Store Intelligence System
+# ATLAS
 
-Purplle Tech Challenge 2026 — Round 2
-Store: Brigade Road, Bangalore (ST1008)
+ATLAS analyzes foot traffic in physical stores. It turns recorded camera footage into visitor events and gives store operators a dashboard for traffic, dwell time, queues, and conversion when point-of-sale data is available.
 
-## Architecture
+## How it works
 
-```
-CCTV Cameras (5×)
-    │
-    ▼
-pipeline/detect.py        YOLO11n + BoT-SORT (track_buffer=90@30fps)
-pipeline/tracker.py       OSNet ReID gallery (30-min re-entry window)
-pipeline/staff_detector.py  HSV colour classification
-pipeline/zone_mapper.py   Polygon zone attribution
-    │
-    ▼ events.jsonl
-    │
-    ▼
-POST /events/ingest       FastAPI + PostgreSQL (idempotent, batched)
-    │
-    ├── GET /stores/{id}/metrics    unique_visitors, conversion_rate, queue_depth
-    ├── GET /stores/{id}/funnel     entry → zone → billing → purchase
-    ├── GET /stores/{id}/heatmap    dwell time by zone
-    └── GET /stores/{id}/anomalies  queue spike, conversion drop, dead zone
-    │
-    ▼
-dashboard/index.html      React SSE live dashboard (no build step)
-```
+1. The Python vision pipeline detects people with YOLO, follows them with BoT-SORT, assigns zones from configured polygons, and uses appearance embeddings to help associate returning visitors.
+2. The pipeline writes JSON Lines events. The FastAPI ingestion endpoint validates and stores events in PostgreSQL. Repeated event IDs are deduplicated.
+3. The API computes metrics, funnels, heatmaps, and anomaly signals. Redis caches frequently requested metrics. The browser dashboard can receive updates over server-sent events.
 
-## Quick Start
+See the [architecture notes](docs/DESIGN.md) and [Redis cache strategy](docs/cache_strategy.md).
 
-**Prerequisites:** Docker Desktop with Compose V2, Python 3.11+
+## Run the API and dashboard
+
+Prerequisites are Docker with Compose V2 and Python 3.11 or newer for the local scripts.
 
 ```bash
-# 1. Start all services (API, PostgreSQL, Redis, dashboard)
+cp .env.example .env
 docker compose up -d
-
-# 2. Verify health
 curl http://localhost:8000/health
-
-# 3. Run the detection pipeline
-python3 run_pipeline.py --store-id STORE_ST1008
-
-# 4. Ingest events into API
-python3 scripts/ingest_events.py --file data/events.jsonl
-
-# 5. View live metrics
-curl http://localhost:8000/stores/STORE_ST1008/metrics | python3 -m json.tool
-
-# 6. Open dashboard
-open http://localhost:3000
 ```
 
-## One-Command CI
+On PowerShell, use `Copy-Item .env.example .env` for the first step. Open the [dashboard](http://localhost:3000) or the [interactive API documentation](http://localhost:8000/docs). The Compose stack starts PostgreSQL, Redis, FastAPI, and an Nginx server for the dashboard. The dashboard loads its browser dependencies from CDNs.
+
+| Endpoint | Use |
+| --- | --- |
+| `POST /events/ingest` | Validate and ingest a batch of detection events |
+| `GET /stores/{store_id}/metrics` | Visitor counts, dwell time, queue depth, and conversion metrics |
+| `GET /stores/{store_id}/funnel` | Summarize traffic across visit stages |
+| `GET /stores/{store_id}/heatmap` | Inspect zone-level dwell time |
+| `GET /stores/{store_id}/anomalies` | Inspect queue, conversion, and feed signals |
+| `GET /stores/{store_id}/stream` | Subscribe to store updates |
+
+## Process footage
+
+Use footage you are authorized to process. The repository includes example camera and zone configuration. Provide video files under `data/videos/` and adapt [the camera map](pipeline/camera_map.json) and [store layout](data/store_layout.json) to your inputs. Review the default output location before running the pipeline, which replaces the previous event file.
 
 ```bash
-make ci
+python -m venv .venv
+# Activate the environment for your shell.
+python -m pip install -e ".[test]"
+python run_pipeline.py
+python scripts/ingest_events.py --file data/events.jsonl
 ```
 
-Runs: lint → type check → pytest → docker smoke test
+`DATABASE_URL` and `REDIS_URL` configure the API outside Compose. `STORE_LAYOUT_PATH` and `POS_CSV_PATH` identify inputs used by the API. The [environment template](.env.example) and [Compose file](docker-compose.yml) show runtime defaults. Configure your own database credentials for any shared environment.
 
-## Run Tests
+## Development
 
-```bash
-make test
-# or directly:
-python3 -m pytest tests/ -v
-```
+Run `python -m pytest tests/` with the test dependencies installed. The default tests use a local SQLite test database. The appearance embedding tests may download model weights on first use. The [Makefile](Makefile) also provides Ruff, mypy, and Docker smoke-test targets.
 
-## Pipeline Configuration
+## Status and limitations
 
-Key settings in `pipeline/config.py`:
-
-| Parameter | Value | Rationale |
-|---|---|---|
-| `target_fps` | 30 | Camera actual fps (29.97 per camera_map.json) |
-| `reid_similarity_threshold` | 0.72 | Cosine similarity for re-entry matching |
-| `reid_gallery_window_sec` | 1800 | 30-minute re-entry detection window |
-| `staff_hue_lower/upper` | 125/170 | Calibrated for fluorescent retail lighting |
-| `staff_color_ratio_threshold` | 0.20 | Lowered for 30–60px CCTV crop distances |
-
-BoT-SORT settings in `pipeline/botsort_retail.yaml`:
-
-| Parameter | Value | Rationale |
-|---|---|---|
-| `track_buffer` | 90 | 3 seconds at 30fps — survives shelf-browse occlusion |
-| `appearance_thresh` | 0.45 | Reduces ID switches between similar-looking people |
-
-## API Reference
-
-All endpoints at `http://localhost:8000`.
-
-### POST /events/ingest
-Batch ingest detection events. Idempotent (same `event_id` can be sent twice).
-Returns partial success: `{"accepted": N, "rejected": M, "errors": [...]}`.
-
-### GET /stores/{store_id}/metrics
-Real-time store metrics. Redis-cached with 30s TTL.
-
-```json
-{
-  "store_id": "STORE_ST1008",
-  "unique_visitors": 86,
-  "conversion_rate": 0.0,
-  "avg_dwell_by_zone": [
-    {"zone_id": "BILLING_QUEUE", "avg_dwell_sec": 71.2},
-    {"zone_id": "WALKWAY", "avg_dwell_sec": 57.8},
-    {"zone_id": "SKINCARE", "avg_dwell_sec": 46.9},
-    {"zone_id": "BILLING", "avg_dwell_sec": 35.7},
-    {"zone_id": "MAKEUP", "avg_dwell_sec": 33.7}
-  ],
-  "current_queue_depth": 6,
-  "abandonment_rate": 0.1163,
-  "data_confidence": "HIGH",
-  "as_of": "2026-06-01T12:54:20Z"
-}
-```
-
-### GET /stores/{store_id}/funnel
-Visitor journey from entry to purchase.
-
-### GET /stores/{store_id}/heatmap
-Dwell time aggregated by zone.
-
-### GET /stores/{store_id}/anomalies
-Real-time anomaly detection:
-- `BILLING_QUEUE_SPIKE` — queue > 5 (WARN) or > 8 (CRITICAL)
-- `CONVERSION_DROP` — today's rate < 70% of 7-day average
-- `DEAD_ZONE` — no zone visits in 30 minutes
-- `STALE_FEED` — no events for 10 minutes
-
-## Design Decisions
-
-See `docs/CHOICES.md` for full decision log with AI interaction notes.
-See `docs/DESIGN.md` for architecture and AI-assisted decisions section.
-
-## Project Structure
-
-```
-pipeline/       Detection pipeline (YOLO + tracking + Re-ID)
-app/            FastAPI analytics API
-dashboard/      React SSE live dashboard
-tests/          pytest suite
-docs/           CHOICES.md, DESIGN.md, audit reports
-migrations/     PostgreSQL schema
-scripts/        Utility scripts (ingest, smoke test)
-```
-
-## Ground Truth Validation
-
-Brigade Road store (10-Apr-2026):
-- POS transactions: 24 invoices
-- Unique buying customers: 21
-- Salespersons: 5 (excluded from metrics via staff detection)
-- Pipeline output: 86 unique_visitors — see `docs/PIPELINE_RUN_RESULTS.md`
+ATLAS is an offline video analytics prototype. Tracking, staff classification, and dwell estimates depend on camera placement, lighting, and calibration. The sample zone geometry is intentionally simple. The pipeline needs suitable model weights and video files. Conversion metrics depend on usable POS data.

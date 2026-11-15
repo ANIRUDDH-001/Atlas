@@ -40,3 +40,19 @@ test.db
 
 
 __pycache__/
+
+/.local-maintenance/
+/docs/AUDIT_REPORT.md
+/docs/CHOICES.md
+/docs/FOLLOWUP_QA.md
+/docs/PIPELINE_RUN_RESULTS.md
+/docs/STAFF_DETECTION_DECISION.md
+/docs/handoffs/01_to_02_handoff.md
+/docs/handoffs/02_to_03_handoff.md
+/docs/handoffs/02_to_06_handoff.md
+/docs/handoffs/03_to_04_handoff.md
+/docs/handoffs/03_to_07_handoff.md
+/docs/handoffs/04_to_08_handoff.md
+/docs/handoffs/05_to_06_handoff.md
+/docs/handoffs/10_to_11_handoff.md
+/prepend_headers.py
